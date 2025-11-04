@@ -16,7 +16,7 @@ export class CategoriesService {
     const category = new Category();
     category.name = createCategoryDto.name;
     console.log(category);
-    return this.categoryRepository.create(createCategoryDto);
+    return this.categoryRepository.save(createCategoryDto);
   }
 
   findAll() {
