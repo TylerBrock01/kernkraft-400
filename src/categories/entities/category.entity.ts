@@ -1,4 +1,5 @@
-import { Entity, Column, PrimaryGeneratedColumn, BaseEntity } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, BaseEntity, OneToMany } from 'typeorm';
+import { Product } from '../../products/entities/product.entity';
 @Entity()
 export class Category extends BaseEntity{
   @PrimaryGeneratedColumn()
@@ -6,4 +7,7 @@ export class Category extends BaseEntity{
 
   @Column({type:'varchar', length: 50})
   name: string;
+
+  @OneToMany(() => Product, (product) => product.category , {cascade: true} )
+  products: Product[];
 }

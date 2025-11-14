@@ -43,4 +43,5 @@ export class CategoriesService {
     await this.categoryRepository.remove(category);
     return 'Category deleted successfully';
   }
+
 }
