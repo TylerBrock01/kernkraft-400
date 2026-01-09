@@ -24,7 +24,7 @@ export class ProductsService {
   }
 
   findAll() {
-    return `This action returns all products`;
+    return this.productRepository.find({loadEagerRelations: true,order:{"id":"ASC"}});
   }
 
   findOne(id: number) {

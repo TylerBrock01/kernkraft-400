@@ -13,6 +13,6 @@ export class Product {
   price: number;
   @Column({ type: 'int'})
   stock: number;
-  @ManyToOne(() => Category)
+  @ManyToOne(() => Category, {eager: true})
   category: Category;
 }
