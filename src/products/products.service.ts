@@ -23,8 +23,9 @@ export class ProductsService {
     return this.productRepository.save({...createProductDto, category});
   }
 
-  findAll() {
-    return this.productRepository.find({loadEagerRelations: true,order:{"id":"ASC"}});
+  async findAll() {
+    const [data, total] =await this.productRepository.findAndCount({loadEagerRelations: true,order:{"id":"ASC"}});
+    return {data, total};
   }
 
   findOne(id: number) {
