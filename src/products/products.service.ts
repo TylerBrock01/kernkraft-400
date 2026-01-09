@@ -23,9 +23,13 @@ export class ProductsService {
     return this.productRepository.save({...createProductDto, category});
   }
 
-  async findAll() {
-    const [data, total] =await this.productRepository.findAndCount({loadEagerRelations: true,order:{"id":"ASC"}});
-    return {data, total};
+  async findAll( category_id?: number) {
+    if(category_id){
+      const [products, total]=await this.productRepository.findAndCount({where:{category:{id:category_id}},loadEagerRelations: true, order:{"id":"ASC"}});
+      return {products, total};
+    }
+    const [products, total] =await this.productRepository.findAndCount({loadEagerRelations: true,order:{"id":"ASC"}});
+    return {products, total};
   }
 
   findOne(id: number) {
