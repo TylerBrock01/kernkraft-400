@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { FindManyOptions, Repository } from 'typeorm';
 import { Product } from './entities/product.entity';
 import { Category } from '../categories/entities/category.entity';
 
@@ -24,11 +24,13 @@ export class ProductsService {
   }
 
   async findAll( category_id?: number) {
+    const options:  FindManyOptions<Product> ={loadEagerRelations: true, order:{"id":"ASC"}}
     if(category_id){
-      const [products, total]=await this.productRepository.findAndCount({where:{category:{id:category_id}},loadEagerRelations: true, order:{"id":"ASC"}});
-      return {products, total};
+      options.where = {
+        category: { id: category_id }
+      }
     }
-    const [products, total] =await this.productRepository.findAndCount({loadEagerRelations: true,order:{"id":"ASC"}});
+    const [products, total] =await this.productRepository.findAndCount(options);
     return {products, total};
   }
 
