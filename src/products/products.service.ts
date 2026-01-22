@@ -23,8 +23,8 @@ export class ProductsService {
     return this.productRepository.save({...createProductDto, category});
   }
 
-  async findAll( category_id?: number, take?: number) {
-    const options:  FindManyOptions<Product> ={loadEagerRelations: true, order:{"id":"DESC"},take:take}
+  async findAll( category_id?: number, take?: number, skip?: number) {
+    const options:  FindManyOptions<Product> ={loadEagerRelations: true, order:{"id":"DESC"},take,skip}
     if(category_id){
       options.where = {
         category: { id: category_id }
