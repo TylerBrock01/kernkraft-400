@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -17,14 +17,21 @@ export class TransactionsService {
 
   async create(createTransactionDto: CreateTransactionDto) {
     await this.productRepository.manager.transaction(async transactionalEntityManager => {
-
       const transaction = new Transaction();
-      transaction.total = createTransactionDto.total;
+      const total : number = createTransactionDto.contents.reduce((total, item) => total + (item.price * item.quantity), 0);
+      transaction.total = total;
 
       for (const contents of createTransactionDto.contents) {
         const product = await transactionalEntityManager.findOneBy(Product, {id: contents.productId});
+        const errors = [];
+
+        if(!product){
+          errors.push(`Producto ${contents.productId} no encontrado`)
+          throw new NotFoundException(errors);
+        }
         if(contents.quantity > product.stock){
-          throw new BadRequestException(`No hay stock ${product.name} suficiente`);
+          errors.push(`No hay stock ${product.name} suficiente`)
+          throw new BadRequestException(errors);
         }
         product.stock -= contents.quantity;
         console.log(product);
