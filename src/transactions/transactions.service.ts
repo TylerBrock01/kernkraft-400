@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -16,17 +16,31 @@ export class TransactionsService {
   ) {}
 
   async create(createTransactionDto: CreateTransactionDto) {
-    const transaction = new Transaction();
-    transaction.total = createTransactionDto.total;
-    await this.transactionRepository.save(transaction);
+    await this.productRepository.manager.transaction(async transactionalEntityManager => {
 
-    for (const contents of createTransactionDto.contents) {
-      const product = await this.productRepository.findOneBy({id: contents.productId});
-      product.stock -= contents.quantity;
-      console.log(product);
-      await this.productRepository.save(product);
-      await this.transactionContentRepository.save({...contents, transaction, product});
-    }
+      const transaction = new Transaction();
+      transaction.total = createTransactionDto.total;
+
+      for (const contents of createTransactionDto.contents) {
+        const product = await transactionalEntityManager.findOneBy(Product, {id: contents.productId});
+        if(contents.quantity > product.stock){
+          throw new BadRequestException(`No hay stock ${product.name} suficiente`);
+        }
+        product.stock -= contents.quantity;
+        console.log(product);
+        // Create transaction content instance
+        const transactionContent = new TransactionContent();
+        transactionContent.price = contents.price;
+        transactionContent.quantity = contents.quantity;
+        transactionContent.product = product
+        transactionContent.transaction = transaction;
+
+        await transactionalEntityManager.save(product);
+        await transactionalEntityManager.save(transaction);
+        await transactionalEntityManager.save(transactionContent);
+      }
+    })
+
     return 'Sale created successfully'
   }
 
