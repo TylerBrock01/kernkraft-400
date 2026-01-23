@@ -27,8 +27,8 @@ export class TransactionContent{
   @Column("decimal")
   price: number;
 
-  @ManyToMany(()=> Product, (product) => product.id, {eager: true, cascade: true})
-  products: Product;
+  @ManyToOne(() => Product, { eager: true })
+  product: Product;
 
   @ManyToOne(()=> Transaction, (transaction) => transaction.content, {cascade: true})
   transaction: Transaction;
