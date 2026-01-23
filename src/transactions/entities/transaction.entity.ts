@@ -13,7 +13,7 @@ export class Transaction {
   transactionDate: Date;
 
   @OneToMany(() => TransactionContent, (transaction) => transaction.transaction)
-  content: TransactionContent[];
+  contents: TransactionContent[];
 }
 
 @Entity()
@@ -30,6 +30,6 @@ export class TransactionContent{
   @ManyToOne(() => Product, { eager: true })
   product: Product;
 
-  @ManyToOne(()=> Transaction, (transaction) => transaction.content, {cascade: true})
+  @ManyToOne(()=> Transaction, (transaction) => transaction.contents, {cascade: true})
   transaction: Transaction;
 }
