@@ -12,7 +12,7 @@ export class TransactionsService {
 
   constructor(
     @InjectRepository(Transaction) private readonly transactionRepository: Repository<Transaction>,
-    // @InjectRepository(TransactionContent) private readonly transactionContentRepository: Repository<TransactionContent>,
+    @InjectRepository(TransactionContent) private readonly transactionContentRepository: Repository<TransactionContent>,
     @InjectRepository(Product) private readonly productRepository: Repository<Product> ,
   ) {}
 
@@ -78,7 +78,15 @@ export class TransactionsService {
     return `This action updates a #${id} transaction`;
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} transaction`;
+  async remove(id: number) {
+    const transaction = await this.findOne(id);
+
+    for (const contents of transaction.contents) {
+      const transactionContents = await this.transactionContentRepository.findOneBy({id: contents.id});
+      await this.transactionContentRepository.remove(transactionContents)
+
+    }
+    await this.transactionRepository.remove(transaction);
+    return {message: 'Transaction deleted successfully'};
   }
 }
