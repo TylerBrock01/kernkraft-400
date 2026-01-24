@@ -82,6 +82,9 @@ export class TransactionsService {
     const transaction = await this.findOne(id);
 
     for (const contents of transaction.contents) {
+      const product = await this.productRepository.findOneBy({id: contents.product.id});
+      product.stock += contents.quantity;
+      await this.productRepository.save(product);
       const transactionContents = await this.transactionContentRepository.findOneBy({id: contents.id});
       await this.transactionContentRepository.remove(transactionContents)
 
