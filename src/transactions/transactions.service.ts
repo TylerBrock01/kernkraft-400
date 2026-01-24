@@ -12,15 +12,14 @@ export class TransactionsService {
 
   constructor(
     @InjectRepository(Transaction) private readonly transactionRepository: Repository<Transaction>,
-    @InjectRepository(TransactionContent) private readonly transactionContentRepository: Repository<TransactionContent>,
+    // @InjectRepository(TransactionContent) private readonly transactionContentRepository: Repository<TransactionContent>,
     @InjectRepository(Product) private readonly productRepository: Repository<Product> ,
   ) {}
 
   async create(createTransactionDto: CreateTransactionDto) {
     await this.productRepository.manager.transaction(async transactionalEntityManager => {
       const transaction = new Transaction();
-      const total : number = createTransactionDto.contents.reduce((total, item) => total + (item.price * item.quantity), 0);
-      transaction.total = total;
+      transaction.total = createTransactionDto.contents.reduce((total, item) => total + (item.price * item.quantity), 0);
 
       for (const contents of createTransactionDto.contents) {
         const product = await transactionalEntityManager.findOneBy(Product, {id: contents.productId});
