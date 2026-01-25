@@ -11,7 +11,10 @@ export class Transaction {
 
   @Column({type: 'timestamp', default: () => 'CURRENT_TIMESTAMP(6)'})
   transactionDate: Date;
-
+  @Column({ type: 'varchar',length:30, nullable: true})
+  coupon: string;
+  @Column({ type: 'decimal', nullable: true})
+  couponDiscount: number;
   @OneToMany(() => TransactionContent, (transaction) => transaction.transaction)
   contents: TransactionContent[];
 }
