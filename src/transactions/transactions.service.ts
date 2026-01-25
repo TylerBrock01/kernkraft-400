@@ -21,15 +21,20 @@ export class TransactionsService {
   async create(createTransactionDto: CreateTransactionDto) {
     await this.productRepository.manager.transaction(async transactionalEntityManager => {
       const transaction = new Transaction();
-      const total = createTransactionDto.contents.reduce((total, item) => total + (item.price * item.quantity), 0);
-      transaction.total = total;
+      transaction.total =0
+      for (const contents of createTransactionDto.contents) {
+        const product = await transactionalEntityManager.findOneBy(Product, {id: contents.productId});
+        if(!product){
+          throw new NotFoundException(`Producto ${contents.productId} no encontrado`)
+        }
+        transaction.total += product.price * contents.quantity
+      }
       if(createTransactionDto.coupon){
         const coupon = await this.couponService.applyCoupon(createTransactionDto.coupon);
-        const discount = (coupon.coupon.discount / 100) * total;
+        const discount = (coupon.coupon.discount / 100) * transaction.total;
         transaction.couponDiscount = discount;
         transaction.coupon = coupon.coupon.name;
         transaction.total -= discount;
-        console.log(coupon);
       }
       for (const contents of createTransactionDto.contents) {
         const product = await transactionalEntityManager.findOneBy(Product, {id: contents.productId});
@@ -44,10 +49,9 @@ export class TransactionsService {
           throw new BadRequestException(errors);
         }
         product.stock -= contents.quantity;
-        console.log(product);
         // Create transaction content instance
         const transactionContent = new TransactionContent();
-        transactionContent.price = contents.price;
+        transactionContent.price = product.price;
         transactionContent.quantity = contents.quantity;
         transactionContent.product = product
         transactionContent.transaction = transaction;
@@ -58,7 +62,7 @@ export class TransactionsService {
       }
     })
 
-    return 'Sale created successfully'
+    return {message:'Sale created successfully\n' }
   }
 
   findAll(transactionDate?: string) {

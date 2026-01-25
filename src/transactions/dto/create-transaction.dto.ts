@@ -9,16 +9,9 @@ export class TransactionContentsDto {
   @IsNotEmpty({ message: 'Cantidad no puede estar vacía' })
   @IsInt({ message: 'Cantidad no válida' }) // Validate quantity too
   quantity: number;
-
-  @IsNotEmpty({ message: 'Precio no puede estar vacío' })
-  @IsNumber({}, { message: 'Precio no válido' })
-  price: number;
 }
 
 export class CreateTransactionDto {
-  @IsNotEmpty({message: 'El Total no puede ir vacio'})
-  @IsNumber({}, {message: 'Cantidad no válida'})
-  total: number
 
   @IsOptional()
   coupon: string;
