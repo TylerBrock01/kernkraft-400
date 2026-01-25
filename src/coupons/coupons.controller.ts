@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/commo
 import { CouponsService } from './coupons.service';
 import { CreateCouponDto } from './dto/create-coupon.dto';
 import { UpdateCouponDto } from './dto/update-coupon.dto';
+import { IdValidationPipe } from '../common/pipes/id-validation/id-validation.pipe';
 
 @Controller('coupons')
 export class CouponsController {
@@ -18,17 +19,17 @@ export class CouponsController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', IdValidationPipe) id: string) {
     return this.couponsService.findOne(+id);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateCouponDto: UpdateCouponDto) {
+  update(@Param('id',IdValidationPipe) id: string, @Body() updateCouponDto: UpdateCouponDto) {
     return this.couponsService.update(+id, updateCouponDto);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
+  remove(@Param('id',IdValidationPipe) id: string) {
     return this.couponsService.remove(+id);
   }
 }
