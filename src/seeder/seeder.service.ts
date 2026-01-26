@@ -25,7 +25,8 @@ export class SeederService {
       const category = await this.categoryRepository.findOneBy({id: seedProduct.categoryId})
       const product = new Product();
       product.name = seedProduct.name;
-      product.stock = seedProduct.inventory
+      product.stock = seedProduct.stock
+      product.image = seedProduct.image
       product.price = seedProduct.price
       product.category = category;
       await this.productRepository.save(product);
