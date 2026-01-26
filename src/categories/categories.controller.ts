@@ -5,12 +5,13 @@ import {
   Body,
   Patch,
   Param,
-  Delete, ParseIntPipe, BadRequestException,
+  Delete, ParseIntPipe, BadRequestException, Query,
 } from '@nestjs/common';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { IdValidationPipe } from '../common/pipes/id-validation/id-validation.pipe';
+import { products } from '../seeder/data/products';
 
 @Controller('categories')
 export class CategoriesController {
@@ -27,15 +28,13 @@ export class CategoriesController {
   }
 
   @Get(':id')
-  findOne(@Param('id',new ParseIntPipe({ exceptionFactory:()=>{new BadRequestException('ID no valido')}})) id: string) {
-    return this.categoriesService.findOne(+id);
+  findOne(@Param('id',IdValidationPipe )id: string,
+          @Query('products') products: string) {
+    return this.categoriesService.findOne(+id, products);
   }
 
   @Patch(':id')
-  update(
-    @Param('id',IdValidationPipe) id: string,
-    @Body() updateCategoryDto: UpdateCategoryDto,
-  ) {
+  update(@Param('id',IdValidationPipe) id: string, @Body() updateCategoryDto: UpdateCategoryDto,) {
     console.log(id);
     console.log(updateCategoryDto);
     return this.categoriesService.update(+id, updateCategoryDto);
