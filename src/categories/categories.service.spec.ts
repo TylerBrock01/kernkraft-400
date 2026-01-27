@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Category } from './entities/category.entity';
 import { CreateCategoryDto } from './dto/create-category.dto';
+import { NotFoundException } from '@nestjs/common';
 
 describe('CategoriesService', () => {
   let service: CategoriesService;
@@ -75,6 +76,11 @@ describe('CategoriesService', () => {
       expect(categoryRepository.findOne).toHaveBeenCalledWith(
         { where: { id: 1 } })
       expect(result).toEqual(mockCategory)
+    })
+    it('should return null if category not found', async () => {
+      mockCategoryRepository.findOne.mockResolvedValue(null)
+
+      await expect( service.findOne(999)).rejects.toThrow(NotFoundException)
     })
   })
 
