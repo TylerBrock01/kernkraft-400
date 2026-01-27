@@ -67,4 +67,14 @@ describe('CategoriesService', () => {
     })
   })
 
+  describe('findOne', () => {
+    it('should return a category if found', async () => {
+      const mockCategory = { id: 1, name: 'Test Category' }
+      mockCategoryRepository.findOne.mockResolvedValue(mockCategory)
+      const result = await service.findOne(1)
+      expect(categoryRepository.findOne).toHaveBeenCalledWith(
+        { where: { id: 1 } })
+      expect(result).toEqual(mockCategory)
+    })
+  })
 })
