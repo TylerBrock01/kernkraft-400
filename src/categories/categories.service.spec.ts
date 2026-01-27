@@ -9,12 +9,14 @@ describe('CategoriesService', () => {
   let categoryRepository;
 
   const mockCategoryRepository = {
-    find: jest.fn(),
     save: jest.fn(),
-    remove: jest.fn(),
-    findOneBy: jest.fn(),
+    find: jest.fn(),
+    findAndCount: jest.fn(),
+    findOne: jest.fn(),
     update: jest.fn(),
+    remove: jest.fn(),
   }
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers:[
@@ -29,9 +31,11 @@ describe('CategoriesService', () => {
     service = module.get<CategoriesService>(CategoriesService)
     categoryRepository = module.get(getRepositoryToken(Category))
   })
+
   it('should be defined', () => {
     expect(service).toBeDefined();
   })
+
   describe('create', () => {
     it('should create a category successfully', async () => {
       const createCategoryDto: CreateCategoryDto = {
@@ -47,5 +51,20 @@ describe('CategoriesService', () => {
     })
   })
 
+  describe('findAll', () => {
+    it('should return an array of categories', async () => {
+      const mockCategories = [
+        { id: 1, name: 'Category 1' },
+        { id: 2, name: 'Category 2' },
+      ]
+
+      mockCategoryRepository.find.mockResolvedValue(mockCategories)
+
+      const result = await service.findAll()
+
+      expect(categoryRepository.find).toHaveBeenCalledWith()
+      expect(result).toEqual(mockCategories)
+    })
+  })
 
 })
