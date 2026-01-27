@@ -4,7 +4,6 @@ import { UpdateCategoryDto } from './update-category.dto';
 describe('UpdateCategoryDto', () => {
   it('category should has name', async () => {
     const dto = new UpdateCategoryDto();
-    dto.id = 1;
     dto.name = 'vestido';
     const errors = await validate(dto);
     console.log(errors);

@@ -77,4 +77,20 @@ describe('CategoriesService', () => {
       expect(result).toEqual(mockCategory)
     })
   })
+
+  describe('update', () => {
+    it('should update a category successfully', async () => {
+      const updateCategoryDto: CreateCategoryDto = { name: 'Updated Category' }
+      const mockCategory = { id: 1, name: 'Old Category' }
+      const updatedCategory = { ...mockCategory, ...updateCategoryDto}
+
+      mockCategoryRepository.findOne.mockResolvedValue(mockCategory)
+      mockCategoryRepository.save.mockResolvedValue(updatedCategory)
+
+      const result = await service.update(1, updateCategoryDto)
+
+      expect(categoryRepository.save).toHaveBeenCalledWith(expect.objectContaining(updateCategoryDto))
+      expect(result).toEqual(updatedCategory)
+    })
+  })
 })
