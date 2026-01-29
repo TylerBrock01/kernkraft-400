@@ -50,7 +50,7 @@ export class CouponsService {
   async applyCoupon(couponName: string){
     const coupon = await this.couponRepository.findOneBy({name: couponName})
     if(!coupon){
-      throw new NotFoundException(`Coupon ${couponName} not found`)
+      throw new NotFoundException(`Coupon ${couponName} not valid`)
     }
     const currentDate = new Date();
     const expirationDate = endOfDay(coupon.expirationDate);
