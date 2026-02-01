@@ -5,12 +5,15 @@ import { Product } from '../products/entities/product.entity';
 import { DataSource, Repository } from 'typeorm';
 import { categories } from './data/categories';
 import { products } from './data/products';
+import { Coupon } from '../coupons/entities/coupon.entity';
+import { coupons } from './data/coupons';
 
 @Injectable()
 export class SeederService {
   constructor(
     @InjectRepository(Product) private readonly productRepository: Repository<Product>,
     @InjectRepository(Category) private readonly categoryRepository: Repository<Category>,
+    @InjectRepository(Coupon) private readonly couponRepository: Repository<Coupon>,
     private dataSource : DataSource
   ) {}
   async onModuleInit(){
@@ -21,6 +24,7 @@ export class SeederService {
   }
   async seed(){
     await this.categoryRepository.save(categories)
+    await this.couponRepository.save(coupons)
     for await (const seedProduct of products){
       const category = await this.categoryRepository.findOneBy({id: seedProduct.categoryId})
       const product = new Product();
