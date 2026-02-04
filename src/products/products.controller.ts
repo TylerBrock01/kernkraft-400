@@ -63,5 +63,6 @@ export class ProductsController {
       throw new BadRequestException('Image is required');
     }
     return this.uploadImageService.uploadFile(file)
+    // return {message: 'image uploaded' };
   }
 }
