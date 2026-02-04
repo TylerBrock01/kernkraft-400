@@ -65,6 +65,6 @@ export class ProductsService {
     const product = await this.findOne(id);
     if (!product) throw new NotFoundException('Product not found')
     await this.productRepository.remove(product);
-    return `Product #${id} REMOVED`;
+    return {message : `Product #${id} REMOVED`};
   }
 }
