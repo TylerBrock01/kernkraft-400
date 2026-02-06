@@ -19,7 +19,7 @@ export class Product {
   @Column({type: 'varchar', length: 20})
   color: string;
   @Column({type: 'decimal'})
-  medida: number
+  size: number
   @ManyToOne(()=> Deck, {eager: true})
   deck: Deck;
 }
