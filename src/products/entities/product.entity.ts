@@ -1,5 +1,6 @@
 import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { Category } from '../../categories/entities/category.entity';
+import { Deck } from '../../decks/entities/deck.entity';
 
 @Entity()
 export class Product {
@@ -15,4 +16,10 @@ export class Product {
   stock: number;
   @ManyToOne(() => Category, {eager: true})
   category: Category;
+  @Column({type: 'varchar', length: 20})
+  color: string;
+  @Column({type: 'decimal'})
+  medida: number
+  @ManyToOne(()=> Deck, {eager: true})
+  deck: Deck;
 }
