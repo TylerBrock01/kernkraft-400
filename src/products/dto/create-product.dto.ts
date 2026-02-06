@@ -15,4 +15,13 @@ export class CreateProductDto {
   @(IsNotEmpty({ message: 'categoria es requerido'}))
   @(IsInt( { message: 'categoria debe ser un numero'}))
   categoryId: number;
+  @(IsNotEmpty({ message: 'color es requerido'}))
+  @(IsString({ message: 'color debe ser texto'}))
+  color: string;
+  @(IsNotEmpty({ message: 'medida es requerida'}))
+  @(IsNumber({maxDecimalPlaces: 2}, { message: 'medida debe ser un numero'}))
+  size: number;
+  @IsNotEmpty({ message: 'deck es requerido'})
+  @(IsInt( { message: 'deck debe ser un numero'}))
+  deckId: number;
 }
