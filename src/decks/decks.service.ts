@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateDeckDto } from './dto/create-deck.dto';
 import { UpdateDeckDto } from './dto/update-deck.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -28,8 +28,15 @@ export class DecksService {
     return this.deckRepository.find();
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} deck`;
+  async findOne(id: number) {
+    const options : FindManyOptions<Deck> ={
+      where:{id}
+    }
+    const deck = await this.deckRepository.findOne(options);
+    if (!deck) {
+      throw new NotFoundException(`Deck ${id} not found`);
+    }
+    return deck;
   }
 
   update(id: number, updateDeckDto: UpdateDeckDto) {
