@@ -1,4 +1,4 @@
-export const coupons = [
+export const coupons =
   [
     {
       "name": "MONSTER",
@@ -51,4 +51,3 @@ export const coupons = [
       "expirationDate": "2026-01-01"
     }
   ]
-]
