@@ -19,7 +19,7 @@ export class DecksService {
   }
 
   findAll() {
-    return `This action returns all decks`;
+    return this.deckRepository.find();
   }
 
   findOne(id: number) {
