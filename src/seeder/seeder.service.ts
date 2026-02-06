@@ -8,6 +8,7 @@ import { products } from './data/products';
 import { Coupon } from '../coupons/entities/coupon.entity';
 import { coupons } from './data/coupons';
 import { Deck } from '../decks/entities/deck.entity';
+import { decks } from './data/decks';
 
 @Injectable()
 export class SeederService {
@@ -27,6 +28,7 @@ export class SeederService {
   async seed(){
     await this.categoryRepository.save(categories)
     await this.couponRepository.save(coupons)
+    await this.deckRepository.save(decks)
     for await (const seedProduct of products){
       const category = await this.categoryRepository.findOneBy({id: seedProduct.categoryId})
       const deck = await this.deckRepository.findOneBy({id: seedProduct.deckId})
