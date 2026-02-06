@@ -28,9 +28,19 @@ export class DecksService {
     return this.deckRepository.find();
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, products?: string) {
     const options : FindManyOptions<Deck> ={
       where:{id}
+    }
+    if (products === "true") {
+      options.relations = {
+        products: true
+      }
+      options.order ={
+        products:{
+          id: 'ASC'
+        }
+      }
     }
     const deck = await this.deckRepository.findOne(options);
     if (!deck) {

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
 import { DecksService } from './decks.service';
 import { CreateDeckDto } from './dto/create-deck.dto';
 import { UpdateDeckDto } from './dto/update-deck.dto';
@@ -19,8 +19,9 @@ export class DecksController {
   }
 
   @Get(':id')
-  findOne(@Param('id', IdValidationPipe) id: string) {
-    return this.decksService.findOne(+id);
+  findOne(@Param('id', IdValidationPipe) id: string,
+          @Query('products') products: string) {
+    return this.decksService.findOne(+id, products);
   }
 
   @Patch(':id')
