@@ -1,4 +1,4 @@
-import { HttpException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, HttpException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -12,9 +12,15 @@ export class CategoriesService {
     private readonly categoryRepository: Repository<Category>,
   ) {}
 
-  create(createCategoryDto: CreateCategoryDto) {
+  async create(createCategoryDto: CreateCategoryDto) {
     const category = new Category();
     category.name = createCategoryDto.name;
+    const existCategory = await this.categoryRepository.findOneBy({
+      name: category.name
+    })
+    if (existCategory) {
+      throw new ConflictException(`category: ${category.name} already exists`)
+    }
     return this.categoryRepository.save(createCategoryDto);
   }
 
