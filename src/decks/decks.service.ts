@@ -48,7 +48,12 @@ export class DecksService {
     return this.deckRepository.save(deck);
   }
 
-  remove(id: number) {
+  async remove(id: number) {
+    const deck = await this.findOne(id);
+    if (!deck) {
+      throw new NotFoundException(`Deck ${id} not found`);
+    }
+    await this.deckRepository.remove(deck);
     return `This action removes a #${id} deck`;
   }
 }
