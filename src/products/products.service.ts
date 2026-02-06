@@ -27,15 +27,20 @@ export class ProductsService {
     return this.productRepository.save({...createProductDto, category,deck});
   }
 
-  async findAll( category_id?: number, take?: number, skip?: number) {
+  async findAll( category_id?: number, deck_id?:number, take?: number, skip?: number) {
     const options:  FindManyOptions<Product> ={loadEagerRelations: true, order:{"id":"DESC"},take,skip}
     if(category_id){
       options.where = {
         category: { id: category_id }
       }
     }
-    const [products, total] =await this.productRepository.findAndCount(options);
-    return {products, total};
+    if (deck_id){
+      options.where = {
+        deck: { id: deck_id }
+      }
+    }
+    const [products] =await this.productRepository.findAndCount(options);
+    return {products};
   }
 
   async findOne(id: number) {
