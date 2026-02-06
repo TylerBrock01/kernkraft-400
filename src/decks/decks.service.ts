@@ -39,8 +39,13 @@ export class DecksService {
     return deck;
   }
 
-  update(id: number, updateDeckDto: UpdateDeckDto) {
-    return `This action updates a #${id} deck`;
+  async update(id: number, updateDeckDto: UpdateDeckDto) {
+    const deck = await this.findOne(id);
+    if (!deck) {
+      throw new NotFoundException(`Deck ${id} not found`);
+    }
+    deck.name = updateDeckDto.name;
+    return this.deckRepository.save(deck);
   }
 
   remove(id: number) {
