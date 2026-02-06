@@ -5,22 +5,26 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { FindManyOptions, Repository } from 'typeorm';
 import { Product } from './entities/product.entity';
 import { Category } from '../categories/entities/category.entity';
+import { Deck } from '../decks/entities/deck.entity';
 
 @Injectable()
 export class ProductsService {
   constructor(
     @InjectRepository(Product) private readonly productRepository: Repository<Product>,
     @InjectRepository(Category) private readonly categoryRepository: Repository<Category>,
+    @InjectRepository(Deck) private readonly deckRepository: Repository<Deck>,
   ) {
   }
   async create(createProductDto: CreateProductDto) {
     const category = await this.categoryRepository.findOneBy({id: createProductDto.categoryId});
-    if(!category){
+    const deck = await this.deckRepository.findOneBy({id: createProductDto.categoryId});
+    if(!category || !deck) {
       let erros: string[]= []
       erros.push('Categoria no encontrada')
       throw new NotFoundException(erros);
     }
-    return this.productRepository.save({...createProductDto, category});
+
+    return this.productRepository.save({...createProductDto, category,deck});
   }
 
   async findAll( category_id?: number, take?: number, skip?: number) {
