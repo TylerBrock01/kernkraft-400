@@ -29,14 +29,22 @@ export class ProductsService {
 
   async findAll( category_id?: number, deck_id?:number, take?: number, skip?: number) {
     const options:  FindManyOptions<Product> ={loadEagerRelations: true, order:{"id":"DESC"},take,skip}
-    if(category_id){
-      options.where = {
-        category: { id: category_id }
+    if (category_id || deck_id) {
+      if(category_id){
+        options.where = {
+          category: { id: category_id }
+        }
+      }
+      if (deck_id){
+        options.where = {
+          deck: { id: deck_id }
+        }
       }
     }
-    if (deck_id){
+    if (category_id && deck_id){
       options.where = {
-        deck: { id: deck_id }
+        deck: { id: deck_id },
+        category: { id: category_id }
       }
     }
     const [products] =await this.productRepository.findAndCount(options);
