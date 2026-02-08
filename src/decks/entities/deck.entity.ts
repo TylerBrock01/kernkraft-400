@@ -9,6 +9,6 @@ export class Deck {
   name: string;
   @Column({ type: 'varchar', nullable: true, default: 'default.svg'})
   image: string;
-  @OneToMany(() => Product, (product) => product.category , {cascade: true} )
+  @OneToMany(() => Product, (product) => product.deck , {cascade: true} )
   products: Product[];
 }
