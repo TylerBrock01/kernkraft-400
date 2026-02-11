@@ -47,8 +47,8 @@ export class ProductsService {
         category: { id: category_id }
       }
     }
-    const [products] =await this.productRepository.findAndCount(options);
-    return {products};
+    const [products, total] =await this.productRepository.findAndCount(options);
+    return {products, total};
   }
 
   async findOne(id: number) {
