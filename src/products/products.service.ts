@@ -60,7 +60,6 @@ export class ProductsService {
   }
 
   async update(id: number, updateProductDto: UpdateProductDto) {
-    console.log(id)
     const product = await this.findOne(id);
     if (!product) throw new NotFoundException(
       `Product #${id} not found`
@@ -74,6 +73,16 @@ export class ProductsService {
         erros.push('Categoria no encontrada')
         throw new NotFoundException(erros);
       }
+      product.category = category;
+    }
+    if(updateProductDto.deckId){
+      const deck = await this.deckRepository.findOneBy({id: updateProductDto.deckId});
+      if(!deck){
+        let erros: string[]= []
+        erros.push('Categoria no encontrada')
+        throw new NotFoundException(erros);
+      }
+      product.deck = deck;
     }
     return await this.productRepository.save(product);
   }
