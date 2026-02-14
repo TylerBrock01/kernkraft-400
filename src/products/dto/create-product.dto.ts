@@ -19,7 +19,7 @@ export class CreateProductDto {
   @(IsString({ message: 'color debe ser texto'}))
   color: string;
   @(IsNotEmpty({ message: 'medida es requerida'}))
-  @(IsNumber({maxDecimalPlaces: 2}, { message: 'medida debe ser un numero'}))
+  @(IsNumber({allowNaN: false, allowInfinity: false, maxDecimalPlaces: 2}, { message: 'medida debe ser un numero'}))
   size: number;
   @IsNotEmpty({ message: 'deck es requerido'})
   @(IsInt( { message: 'deck debe ser un numero'}))
