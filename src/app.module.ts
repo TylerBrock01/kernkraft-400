@@ -10,6 +10,8 @@ import { TransactionsModule } from './transactions/transactions.module';
 import { CouponsModule } from './coupons/coupons.module';
 import { UploadImageModule } from './upload-image/upload-image.module';
 import { DecksModule } from './decks/decks.module';
+import { AuthModule } from './auth/auth.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -26,6 +28,8 @@ import { DecksModule } from './decks/decks.module';
     CouponsModule,
     UploadImageModule,
     DecksModule,
+    AuthModule,
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [AppService],
