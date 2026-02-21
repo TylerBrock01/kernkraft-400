@@ -19,6 +19,9 @@ import { IdValidationPipe } from '../common/pipes/id-validation/id-validation.pi
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UploadImageService } from '../upload-image/upload-image.service';
 import { JwtAuthGuard } from '../jwt-auth/jwt-auth.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { Role } from '../auth/roles/roles';
+import { RolesGuard } from '../auth/guards/roles.guard';
 
 @Controller('products')
 export class ProductsController {
@@ -27,7 +30,8 @@ export class ProductsController {
     private readonly uploadImageService: UploadImageService,
 
   ) {}
-  @UseGuards(JwtAuthGuard)
+  @Roles(Role.ADMIN, Role.ALMACEN)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Post()
   create(@Body() createProductDto: CreateProductDto) {
     console.log(createProductDto);
@@ -48,18 +52,20 @@ export class ProductsController {
     return this.productsService.findOne(+id);
   }
 
+  @Roles(Role.ADMIN, Role.ALMACEN)
   @UseGuards(JwtAuthGuard)
   @Patch(':id')
   update(@Param('id', IdValidationPipe) id: string, @Body() updateProductDto: UpdateProductDto) {
     return this.productsService.update(+id, updateProductDto);
   }
-
+  @Roles(Role.ADMIN)
   @UseGuards(JwtAuthGuard)
   @Delete(':id')
   remove(@Param('id', IdValidationPipe) id: string) {
     return this.productsService.remove(+id);
   }
 
+  @Roles(Role.ADMIN, Role.ALMACEN)
   @UseGuards(JwtAuthGuard)
   @Post('upload-image')
   @UseInterceptors(FileInterceptor('file'))
