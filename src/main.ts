@@ -13,6 +13,12 @@ async function bootstrap() {
       whitelist: true,
     }),
   );
+  app.enableCors({
+    origin: 'http://localhost:3001', // La URL de tu Next.js
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    credentials: true, // Importante para que acepte las cookies
+  });
+
   app.useStaticAssets(join(__dirname, '..', 'public'));
   await app.listen(port);
 }
