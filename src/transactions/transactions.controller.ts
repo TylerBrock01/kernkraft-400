@@ -19,7 +19,7 @@ export class TransactionsController {
     return this.transactionsService.create(createTransactionDto);
   }
 
-  @Roles(Role.ADMIN,)
+  @Roles(Role.ADMIN)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Get()
   findAll(@Query('transactionDate') transactionDate: string) {
