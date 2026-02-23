@@ -12,7 +12,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 export class TransactionsController {
   constructor(private readonly transactionsService: TransactionsService) {}
 
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN,Role.VENDEDOR)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Post()
   create(@Body() createTransactionDto: CreateTransactionDto) {
