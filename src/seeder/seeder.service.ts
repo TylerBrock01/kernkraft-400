@@ -35,7 +35,7 @@ export class SeederService {
       const product = new Product();
       product.name = seedProduct.name;
       product.stock = seedProduct.stock
-      // product.image = seedProduct.image
+      product.image = seedProduct.image
       product.price = seedProduct.price
       product.category = category;
       product.color = seedProduct.color;
