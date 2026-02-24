@@ -9,6 +9,8 @@ import { Coupon } from '../coupons/entities/coupon.entity';
 import { coupons } from './data/coupons';
 import { Deck } from '../decks/entities/deck.entity';
 import { decks } from './data/decks';
+import { User } from '../users/entities/user.entity';
+import { users } from './data/users';
 
 @Injectable()
 export class SeederService {
@@ -17,6 +19,7 @@ export class SeederService {
     @InjectRepository(Category) private readonly categoryRepository: Repository<Category>,
     @InjectRepository(Coupon) private readonly couponRepository: Repository<Coupon>,
     @InjectRepository(Deck) private readonly deckRepository: Repository<Deck>,
+    @InjectRepository(User) private readonly userRepository: Repository<User>,
     private dataSource : DataSource
   ) {}
   async onModuleInit(){
@@ -43,6 +46,13 @@ export class SeederService {
       product.deck = deck;
       await this.productRepository.save(product);
 
+    }
+    for await (const seedUser of users){
+      const user = new User()
+      user.email =seedUser.email
+      user.password =seedUser.password
+      user.role = seedUser.role
+      await this.userRepository.save(user)
     }
     console.log('from seeder');
   }

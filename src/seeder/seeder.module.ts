@@ -7,6 +7,7 @@ import { Product } from '../products/entities/product.entity';
 import { Category } from '../categories/entities/category.entity';
 import { Coupon } from '../coupons/entities/coupon.entity';
 import { Deck } from '../decks/entities/deck.entity';
+import { User } from '../users/entities/user.entity';
 
 @Module({
   imports: [
@@ -17,7 +18,7 @@ import { Deck } from '../decks/entities/deck.entity';
       useFactory: typeOrmConfig,
       inject: [ConfigService],
     }),
-    TypeOrmModule.forFeature([Product,Category,Coupon,Deck]),
+    TypeOrmModule.forFeature([Product,Category,Coupon,Deck,User]),
   ],
   providers: [SeederService]
 })
