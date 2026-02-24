@@ -14,7 +14,10 @@ async function bootstrap() {
     }),
   );
   app.enableCors({
-    origin: 'http://localhost:3001', // La URL de tu Next.js
+    origin: [
+      'http://localhost:3001',
+      'https://kernkraft-500-seven.vercel.app'
+    ], // La URL de tu Next.js
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true, // Importante para que acepte las cookies
   });
