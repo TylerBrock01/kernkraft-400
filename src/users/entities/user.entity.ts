@@ -1,5 +1,6 @@
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { Role } from '../../auth/roles/roles';
+import { Transaction } from '../../transactions/entities/transaction.entity';
 
 @Entity()
 export class User {
@@ -19,4 +20,6 @@ export class User {
   })
   role: Role;
 
+  @OneToMany(() => Transaction, (transaction) => transaction.user)
+  transactions: Transaction[];
 }

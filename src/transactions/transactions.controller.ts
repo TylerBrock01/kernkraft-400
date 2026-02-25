@@ -7,6 +7,8 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/roles/roles';
 import { JwtAuthGuard } from '../jwt-auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { GetUser } from '../auth/decorators/get-user.decorator';
+import { User } from '../users/entities/user.entity';
 
 @Controller('transactions')
 export class TransactionsController {
@@ -15,8 +17,10 @@ export class TransactionsController {
   @Roles(Role.ADMIN,Role.VENDEDOR)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Post()
-  create(@Body() createTransactionDto: CreateTransactionDto) {
-    return this.transactionsService.create(createTransactionDto);
+  create(
+    @Body() createTransactionDto: CreateTransactionDto,
+    @GetUser() user: User) {
+    return this.transactionsService.create(createTransactionDto,user);
   }
 
   @Roles(Role.ADMIN)

@@ -7,6 +7,7 @@ import { Between, FindManyOptions, Repository } from 'typeorm';
 import { Product } from '../products/entities/product.entity';
 import { endOfDay, isValid, parseISO, startOfDay } from 'date-fns';
 import { CouponsService } from '../coupons/coupons.service';
+import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class TransactionsService {
@@ -18,53 +19,67 @@ export class TransactionsService {
     private readonly couponService: CouponsService
   ) {}
 
-  async create(createTransactionDto: CreateTransactionDto) {
-    await this.productRepository.manager.transaction(async transactionalEntityManager => {
-      const transaction = new Transaction();
-      transaction.total =0
-      for (const contents of createTransactionDto.contents) {
-        const product = await transactionalEntityManager.findOneBy(Product, {id: contents.productId});
-        if(!product){
-          throw new NotFoundException(`Producto ${contents.productId} no encontrado`)
-        }
-        transaction.total += product.price * contents.quantity
-      }
-      if(createTransactionDto.coupon){
-        const coupon = await this.couponService.applyCoupon(createTransactionDto.coupon);
-        const discount = (coupon.coupon.discount / 100) * transaction.total;
-        transaction.couponDiscount = discount;
-        transaction.coupon = coupon.coupon.name;
-        transaction.total -= discount;
-      }
-      for (const contents of createTransactionDto.contents) {
-        const product = await transactionalEntityManager.findOneBy(Product, {id: contents.productId});
-        const errors = [];
+  async create(createTransactionDto: CreateTransactionDto, user: User) {
+    console.log('--- DEBUG TRANSACCIÓN ---');
+    console.log('Contenido del DTO:', createTransactionDto);
+    console.log('Objeto USER completo:', user);
+    console.log('ID del USER:', user?.id);
+    console.log('-------------------------');
+    return await this.productRepository.manager.transaction(async (manager) => {
 
-        if(!product){
-          errors.push(`Producto ${contents.productId} no encontrado`)
-          throw new NotFoundException(errors);
-        }
-        if(contents.quantity > product.stock){
-          errors.push(`No hay stock ${product.name} suficiente`)
-          throw new BadRequestException(errors);
-        }
-        product.stock -= contents.quantity;
-        // Create transaction content instance
-        const transactionContent = new TransactionContent();
-        transactionContent.price = product.price;
-        transactionContent.quantity = contents.quantity;
-        transactionContent.product = product
-        transactionContent.transaction = transaction;
+      // 1. Calculamos el total primero (Pura lógica, nada de DB aún)
+      let total = 0;
+      const itemsParaProcesar = [];
 
-        await transactionalEntityManager.save(product);
-        await transactionalEntityManager.save(transaction);
-        await transactionalEntityManager.save(transactionContent);
+      for (const item of createTransactionDto.contents) {
+        const product = await manager.findOneBy(Product, { id: item.productId });
+        if (!product) throw new NotFoundException(`Producto ${item.productId} no encontrado`);
+        if (item.quantity > product.stock) throw new BadRequestException(`No hay stock de ${product.name}`);
+
+        total += Number(product.price) * item.quantity;
+        itemsParaProcesar.push({ product, quantity: item.quantity });
       }
-    })
 
-    return {message:'Sale created successfully\n' }
+      // 2. Aplicar cupones si existen
+      let couponName = null;
+      let couponDiscount = 0;
+      if (createTransactionDto.coupon) {
+        const res = await this.couponService.applyCoupon(createTransactionDto.coupon);
+        couponDiscount = (res.coupon.discount / 100) * total;
+        couponName = res.coupon.name;
+        total -= couponDiscount;
+      }
+
+      // 3. INSERT de la Transacción (Usamos .insert para evitar el UpdateValuesMissingError)
+      // Al usar insert, TypeORM no intenta "adivinar", simplemente dispara la consulta.
+      const nuevaTransaccion = await manager.insert(Transaction, {
+        total: total,
+        coupon: couponName,
+        couponDiscount: couponDiscount,
+        user: { id: user.id } // Solo necesitamos el ID para la relación
+      });
+
+      const transactionId = nuevaTransaccion.identifiers[0].id;
+
+      // 4. Procesamos productos y sus contenidos
+      for (const item of itemsParaProcesar) {
+        // Actualizamos el stock directamente en la BD (Más seguro y rápido)
+        await manager.update(Product, item.product.id, {
+          stock: item.product.stock - item.quantity
+        });
+
+        // Insertamos el detalle de la venta
+        await manager.insert(TransactionContent, {
+          price: item.product.price,
+          quantity: item.quantity,
+          product: { id: item.product.id },
+          transaction: { id: transactionId }
+        });
+      }
+
+      return { message: 'Sale created successfully', transactionId };
+    });
   }
-
   findAll(transactionDate?: string) {
     const options : FindManyOptions<Transaction> = {relations: {contents:true}}
     if(transactionDate){
