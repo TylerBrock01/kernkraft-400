@@ -6,11 +6,13 @@ import { Category } from '../categories/entities/category.entity';
 import { NotFoundException } from '@nestjs/common';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { Deck } from '../decks/entities/deck.entity';
 
 describe('ProductsService', () => {
   let service: ProductsService;
   let productRepository;
   let categoryRepository;
+  let deckRepository;
 
   const mockProductRepository = {
     save: jest.fn(),
@@ -22,6 +24,10 @@ describe('ProductsService', () => {
   const mockCategoryRepository = {
     findOneBy: jest.fn(),
   };
+
+  const mockDeckRepository = {
+    findOneBy: jest.fn(),
+  }
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -35,12 +41,17 @@ describe('ProductsService', () => {
           provide: getRepositoryToken(Category),
           useValue: mockCategoryRepository,
         },
+        {
+          provide: getRepositoryToken(Deck),
+          useValue: mockDeckRepository,
+        },
       ],
     }).compile();
 
     service = module.get<ProductsService>(ProductsService);
     productRepository = module.get(getRepositoryToken(Product));
     categoryRepository = module.get(getRepositoryToken(Category));
+    deckRepository = module.get(getRepositoryToken(Deck));
   });
 
   it('should be defined', () => {
@@ -54,18 +65,28 @@ describe('ProductsService', () => {
         price: 100,
         stock: 10,
         categoryId: 1,
+        image: "default",
+        color: "azul",
+        size: 8,
+        deckId: 1
       };
 
       const mockCategory = { id: 1, name: 'Test Category' };
-      const savedProduct = { id: 1, ...createProductDto, category: mockCategory };
+      const mockDeck = { id: 1, name: 'Test Deck' };
+      const savedProduct = { id: 1, ...createProductDto, category: mockCategory, deck: mockDeck };
 
       mockCategoryRepository.findOneBy.mockResolvedValue(mockCategory);
+      mockDeckRepository.findOneBy.mockResolvedValue(mockDeck);
+
       mockProductRepository.save.mockResolvedValue(savedProduct);
 
       const result = await service.create(createProductDto);
 
       expect(categoryRepository.findOneBy).toHaveBeenCalledWith({ id: createProductDto.categoryId });
-      expect(productRepository.save).toHaveBeenCalledWith({ ...createProductDto, category: mockCategory });
+      expect(deckRepository.findOneBy).toHaveBeenCalledWith({ id: createProductDto.deckId });
+
+      expect(productRepository.save).toHaveBeenCalledWith({ ...createProductDto, category: mockCategory, deck: mockDeck });
+
       expect(result).toEqual(savedProduct);
     });
 
@@ -75,6 +96,10 @@ describe('ProductsService', () => {
         price: 100,
         stock: 10,
         categoryId: 999,
+        image: "default",
+        color: "azul",
+        size: 8,
+        deckId: 1
       };
 
       mockCategoryRepository.findOneBy.mockResolvedValue(null);
