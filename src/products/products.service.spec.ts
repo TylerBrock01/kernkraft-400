@@ -211,13 +211,15 @@ describe('ProductsService', () => {
   describe('remove', () => {
     it('should remove a product successfully', async () => {
       const mockProduct = { id: 1, name: 'Test Product' };
+
       mockProductRepository.findOne.mockResolvedValue(mockProduct);
+
       mockProductRepository.remove.mockResolvedValue(mockProduct);
 
       const result = await service.remove(1);
 
       expect(productRepository.remove).toHaveBeenCalledWith(mockProduct);
-      expect(result).toEqual('Product #1 REMOVED');
+      expect(result).toEqual({message: "Product #1 REMOVED"});
     });
 
     it('should throw NotFoundException if product to remove not found', async () => {
