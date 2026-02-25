@@ -30,6 +30,7 @@ describe('ProductsService', () => {
   }
 
   beforeEach(async () => {
+    jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ProductsService,
@@ -131,22 +132,27 @@ describe('ProductsService', () => {
 
     it('should apply filters correctly', async () => {
         const categoryId = 1;
+        const deckId = 1;
         const take = 10;
         const skip = 0;
-        const mockProducts = [{ id: 1, name: 'Product 1' }];
+        const mockProducts = [{ id: 1, name: 'Product 1'}];
         const total = 1;
 
         mockProductRepository.findAndCount.mockResolvedValue([mockProducts, total]);
 
-        await service.findAll(categoryId, take, skip);
+        const result = await service.findAll(categoryId,deckId, take, skip);
 
         expect(productRepository.findAndCount).toHaveBeenCalledWith({
-            loadEagerRelations: true,
-            order: { id: 'DESC' },
-            take,
-            skip,
-            where: { category: { id: categoryId } }
+          where: {
+            category: { id: categoryId },
+            deck: { id: deckId }
+          },
+          take: take,
+          skip: skip,
+          order: { id: 'DESC' },
+          loadEagerRelations: true,
         });
+        expect(result).toEqual({ products: mockProducts, total });
     });
   });
 
