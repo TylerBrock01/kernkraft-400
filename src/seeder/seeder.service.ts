@@ -52,7 +52,7 @@ export class SeederService {
       user.email =seedUser.email
       user.password =seedUser.password
       user.role = seedUser.role
-      await this.userRepository.save(user)
+      // await this.userRepository.save(user)
     }
     console.log('from seeder');
   }
