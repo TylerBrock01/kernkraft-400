@@ -26,8 +26,14 @@ export class TransactionsController {
   @Roles(Role.ADMIN)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Get()
-  findAll(@Query('transactionDate') transactionDate: string) {
-    return this.transactionsService.findAll(transactionDate);
+  findAll(
+    @Query('transactionDate') transactionDate: string,
+    @GetUser() user: User,
+    @Query('date') date?: string,
+    @Query('take') take?: number,
+    @Query('skip') skip?: number,
+  ) {
+    return this.transactionsService.findAll(user,transactionDate, take, skip);
   }
 
   @Roles(Role.ADMIN,Role.VENDEDOR)

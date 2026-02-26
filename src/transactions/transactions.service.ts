@@ -80,18 +80,42 @@ export class TransactionsService {
       return { message: 'Sale created successfully', transactionId };
     });
   }
-  findAll(transactionDate?: string) {
-    const options : FindManyOptions<Transaction> = {relations: {contents:true}}
-    if(transactionDate){
-      const date = parseISO(transactionDate)
-      if (!isValid(date)) throw new BadRequestException('Date must be valid ISO 8601')
+
+  async findAll(user: User, transactionDate?: string, take: number = 10, skip: number = 0) {
+    // 1. Iniciamos las opciones con el filtro de usuario SIEMPRE presente
+    const options: FindManyOptions<Transaction> = {
+      relations: { contents: { product: true } }, // Cargamos productos para ver qué se vendió
+      where: {
+        user: { id: user.id } // Seguridad: El usuario solo ve lo suyo
+      },
+      order: { transactionDate: 'DESC' },
+      take,
+      skip
+    };
+
+    // 2. Si hay fecha, extendemos el objeto 'where' sin borrar el 'user'
+    if (transactionDate) {
+      const date = parseISO(transactionDate);
+      if (!isValid(date)) throw new BadRequestException('La fecha debe ser un formato ISO 8601 válido');
+
       const startDate = startOfDay(date);
       const endDate = endOfDay(date);
+
+      // Usamos el operador spread (...) para mantener el filtro de user.id
       options.where = {
+        ...options.where as object,
         transactionDate: Between(startDate, endDate)
-      }
+      };
     }
-    return this.transactionRepository.find(options);
+
+    // 3. Usamos findAndCount para facilitar la paginación en el frontend de la Skate Shop
+    const [transactions, total] = await this.transactionRepository.findAndCount(options);
+
+    return {
+      transactions,
+      total,
+      page: Math.ceil(skip / take) + 1
+    };
   }
 
   async findOne(id: number) {
