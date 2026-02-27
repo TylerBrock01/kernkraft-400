@@ -8,6 +8,7 @@ import { Product } from '../products/entities/product.entity';
 import { endOfDay, isValid, parseISO, startOfDay } from 'date-fns';
 import { CouponsService } from '../coupons/coupons.service';
 import { User } from '../users/entities/user.entity';
+import { Role } from '../auth/roles/roles';
 
 @Injectable()
 export class TransactionsService {
@@ -77,33 +78,42 @@ export class TransactionsService {
   }
 
   async findAll(user: User, transactionDate?: string, take: number = 10, skip: number = 0) {
-    // 1. Iniciamos las opciones con el filtro de usuario SIEMPRE presente
+
     const options: FindManyOptions<Transaction> = {
-      relations: { contents: { product: true } }, // Cargamos productos para ver qué se vendió
-      where: {
-        user: { id: user.id } // Seguridad: El usuario solo ve lo suyo
+      // CORRECTO: user y contents son hermanos, ambos hijos de Transaction
+      relations: {
+        user: true,           // Traemos al vendedor de la transacción
+        contents: {
+          product: true       // Traemos el producto de cada línea de contenido
+        }
       },
+      where: {},
       order: { transactionDate: 'DESC' },
       take,
       skip
     };
 
-    // 2. Si hay fecha, extendemos el objeto 'where' sin borrar el 'user'
+    // 2. REGLA DE ORO: Si NO es admin, filtramos por su ID.
+    // Si ES admin, dejamos el 'where' vacío para que traiga TODO.
+    if (user.role !== Role.ADMIN) {
+      options.where = { user: { id: user.id } };
+    }
+
+    // 3. Filtro de Fecha (manteniendo la seguridad)
     if (transactionDate) {
       const date = parseISO(transactionDate);
-      if (!isValid(date)) throw new BadRequestException('La fecha debe ser un formato ISO 8601 válido');
+      if (!isValid(date)) throw new BadRequestException('Fecha inválida');
 
       const startDate = startOfDay(date);
       const endDate = endOfDay(date);
 
-      // Usamos el operador spread (...) para mantener el filtro de user.id
+      // Combinamos el filtro de fecha con lo que ya tengamos en 'where' (el user.id si no es admin)
       options.where = {
-        ...options.where as object,
+        ...options.where,
         transactionDate: Between(startDate, endDate)
       };
     }
 
-    // 3. Usamos findAndCount para facilitar la paginación en el frontend de la Skate Shop
     const [transactions, total] = await this.transactionRepository.findAndCount(options);
 
     return {
