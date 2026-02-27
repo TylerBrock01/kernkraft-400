@@ -9,17 +9,26 @@ import { Repository } from 'typeorm';
 export class UsersService {
   constructor(
     @InjectRepository(User)
-    private usersRepository: Repository<User>,
+    private userRepository: Repository<User>,
   ) {}
 
   // Este es el método que te faltaba
-  async findOneByEmail(email: string): Promise<User | undefined> {
-    return this.usersRepository.findOneBy({ email });
+  create(userData: Partial<User>) {
+    const newUser = this.userRepository.create(userData);
+    return this.userRepository.save(newUser);
   }
 
-  async create(userData: any) {
-    const newUser = this.usersRepository.create(userData);
-    return this.usersRepository.save(newUser);
+  // Para el login exclusivamente: Traemos el password
+  async findOneWithPassword(email: string) {
+    return this.userRepository.findOne({
+      where: { email },
+      select: ['id', 'email', 'password', 'role', 'name'] // Aquí "forzamos" el password
+    });
+  }
+
+  // Para todo lo demás: El password no viene
+  async findOneByEmail(email: string) {
+    return this.userRepository.findOneBy({ email });
   }
 
   findAll() {

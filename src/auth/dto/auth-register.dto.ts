@@ -1,15 +1,28 @@
-import { IsEmail, IsEnum, IsNotEmpty, IsOptional, MinLength } from 'class-validator';
+// src/auth/dto/auth-register.dto.ts
+import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
 import { Role } from '../roles/roles';
 
 export class AuthRegisterDto {
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  @IsString()
+  @IsOptional()
+  lastName?: string;
+
   @IsEmail({}, { message: 'Email no válido' })
   email: string;
 
   @IsNotEmpty()
-  @MinLength(6, { message: 'La contraseña debe tener al menos 6 caracteres' })
+  @MinLength(6, { message: 'Mínimo 6 caracteres' })
   password: string;
 
-  @IsOptional() // Permite que sea opcional para que use el default
-  @IsEnum(Role, { message: 'El rol no es válido' }) // Valida contra tu Enum
+  @IsString()
+  @IsOptional()
+  phone?: string;
+
+  @IsOptional()
+  @IsEnum(Role)
   role?: Role;
 }
