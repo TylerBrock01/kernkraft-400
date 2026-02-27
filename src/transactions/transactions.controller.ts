@@ -29,7 +29,6 @@ export class TransactionsController {
   findAll(
     @Query('transactionDate') transactionDate: string,
     @GetUser() user: User,
-    @Query('date') date?: string,
     @Query('take') take?: number,
     @Query('skip') skip?: number,
   ) {
