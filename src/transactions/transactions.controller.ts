@@ -23,7 +23,7 @@ export class TransactionsController {
     return this.transactionsService.create(createTransactionDto,user);
   }
 
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN,Role.VENDEDOR)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Get()
   findAll(
