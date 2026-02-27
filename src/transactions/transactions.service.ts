@@ -20,11 +20,6 @@ export class TransactionsService {
   ) {}
 
   async create(createTransactionDto: CreateTransactionDto, user: User) {
-    console.log('--- DEBUG TRANSACCIÓN ---');
-    console.log('Contenido del DTO:', createTransactionDto);
-    console.log('Objeto USER completo:', user);
-    console.log('ID del USER:', user?.id);
-    console.log('-------------------------');
     return await this.productRepository.manager.transaction(async (manager) => {
 
       // 1. Calculamos el total primero (Pura lógica, nada de DB aún)
