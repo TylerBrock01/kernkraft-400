@@ -16,6 +16,7 @@ async function bootstrap() {
   app.enableCors({
     origin: [
       process.env.FRONTEND_URL,
+
     ], // La URL de tu Next.js
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true, // Importante para que acepte las cookies
