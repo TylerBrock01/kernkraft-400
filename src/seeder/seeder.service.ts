@@ -6,11 +6,10 @@ import { DataSource, In, Repository } from 'typeorm';
 import { categories } from './data/categories';
 import { products } from './data/products';
 import { Coupon } from '../coupons/entities/coupon.entity';
-import { coupons } from './data/coupons';
 import { Deck } from '../decks/entities/deck.entity';
 import { decks } from './data/decks';
 import { User } from '../users/entities/user.entity';
-import { users } from './data/users';
+import { coupons } from './data/coupons';
 
 @Injectable()
 export class SeederService {
@@ -47,12 +46,24 @@ export class SeederService {
       await this.productRepository.save(product);
 
     }
-    for await (const seedUser of users){
-      const user = new User()
-      user.email =seedUser.email
-      user.password =seedUser.password
-      user.role = seedUser.role
-      // await this.userRepository.save(user)
+
+    // Dentro de tu función de seeding
+    for (const seedCoupon of coupons) {
+      // Comprobamos si el cupón ya existe para evitar errores de llave única (name)
+      const exists = await this.couponRepository.findOneBy({ name: seedCoupon.name });
+
+      if (!exists) {
+        const coupon = new Coupon();
+
+        // Inyección masiva de propiedades del seed al objeto Entity
+        Object.assign(coupon, seedCoupon);
+
+        // Guardado en el Mainframe de Render
+        await this.couponRepository.save(coupon);
+        console.log(`[VASK8_OS] Protocolo inyectado: ${coupon.name}`);
+      } else {
+        console.log(`[VASK8_OS] Salto de seguridad: ${seedCoupon.name} ya está en el sistema.`);
+      }
     }
     console.log('from seeder');
   }

@@ -23,7 +23,7 @@ export class TransactionsService {
   async create(createTransactionDto: CreateTransactionDto, user: User) {
     return await this.productRepository.manager.transaction(async (manager) => {
 
-      // 1. Calculamos el total primero (Pura lógica, nada de DB aún)
+      // 1. CÁLCULO INICIAL DE TELEMETRÍA (Bruto)
       let total = 0;
       const itemsParaProcesar = [];
 
@@ -36,35 +36,49 @@ export class TransactionsService {
         itemsParaProcesar.push({ product, quantity: item.quantity });
       }
 
-      // 2. Aplicar cupones si existen
+      // 2. PROTOCOLO DE CUPONES: Validación y Cálculo
       let couponName = null;
       let couponDiscount = 0;
+
       if (createTransactionDto.coupon) {
-        const res = await this.couponService.applyCoupon(createTransactionDto.coupon);
-        couponDiscount = (res.coupon.discount / 100) * total;
+        // Inyectamos el total actual para validar compra mínima en el Service
+        const res = await this.couponService.applyCoupon({
+          coupon_name: createTransactionDto.coupon,
+          total: total // 👈 Validación minPurchase blindada
+        });
+
+        // Lógica de Descuento Dual (Fijo vs Porcentual)
+        if (res.coupon.isPercentage) {
+          couponDiscount = (res.coupon.discount / 100) * total;
+        } else {
+          // Aseguramos que el descuento no sea mayor que el total (Seguridad CAZA)
+          couponDiscount = Math.min(res.coupon.discount, total);
+        }
+
         couponName = res.coupon.name;
         total -= couponDiscount;
+
+        // 3. CONSUMO DE HARDWARE (CUPÓN)
+        // Lo marcamos como usado dentro de la transacción
+        await this.couponService.confirmCouponUsage(couponName);
       }
 
-      // 3. INSERT de la Transacción (Usamos .insert para evitar el UpdateValuesMissingError)
-      // Al usar insert, TypeORM no intenta "adivinar", simplemente dispara la consulta.
+      // 4. INSERT DE LA TRANSACCIÓN
       const nuevaTransaccion = await manager.insert(Transaction, {
         total: total,
         coupon: couponName,
         couponDiscount: couponDiscount,
-        user: { id: user.id } // Solo necesitamos el ID para la relación
+        user: { id: user.id }
       });
 
       const transactionId = nuevaTransaccion.identifiers[0].id;
 
-      // 4. Procesamos productos y sus contenidos
+      // 5. ACTUALIZACIÓN DE STOCK Y DETALLES
       for (const item of itemsParaProcesar) {
-        // Actualizamos el stock directamente en la BD (Más seguro y rápido)
         await manager.update(Product, item.product.id, {
           stock: item.product.stock - item.quantity
         });
 
-        // Insertamos el detalle de la venta
         await manager.insert(TransactionContent, {
           price: item.product.price,
           quantity: item.quantity,
@@ -73,10 +87,13 @@ export class TransactionsService {
         });
       }
 
-      return { message: 'Sale created successfully', transactionId };
+      return {
+        message: 'Sale created successfully. Mainframe updated.',
+        transactionId,
+        finalTotal: total
+      };
     });
   }
-
   async findAll(user: User, transactionDate?: string, take: number = 10, skip: number = 0) {
 
     const options: FindManyOptions<Transaction> = {
