@@ -33,7 +33,7 @@ export class CouponsController {
     return this.couponsService.findOne(+id);
   }
 
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN,Role.VENDEDOR)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Patch(':id')
   update(@Param('id',IdValidationPipe) id: string, @Body() updateCouponDto: UpdateCouponDto) {
@@ -47,15 +47,9 @@ export class CouponsController {
     return this.couponsService.remove(+id);
   }
 
-  @Roles(Role.ADMIN, Role.VENDEDOR)
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Post('/apply-coupon')
   @HttpCode(HttpStatus.OK)
   applyCoupon(@Body() applyCouponDto: ApplyCouponDto) {
-    /* INYECTAMOS EL DTO COMPLETO:
-       Ahora el Service recibirá { coupon_name: string, total: number }
-       permitiendo validar si el carrito alcanza el mínimo requerido.
-    */
     return this.couponsService.applyCoupon(applyCouponDto);
   }
 }
