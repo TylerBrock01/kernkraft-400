@@ -24,9 +24,11 @@ import { JwtAuthGuard } from '../jwt-auth/jwt-auth.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/roles/roles';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import { GetBusinessId } from '../auth/decorators/get-business-id.decorator'; // <--- Importante
+import { GetBusinessId } from '../auth/decorators/get-business-id.decorator';
+import { BusinessActiveGuard } from '../auth/guards/business-active.guard'; // <--- Importante
 
 @Controller('products')
+@UseGuards(BusinessActiveGuard) // <--- El tercer sello de seguridad
 export class ProductsController {
   constructor(
     private readonly productsService: ProductsService,
