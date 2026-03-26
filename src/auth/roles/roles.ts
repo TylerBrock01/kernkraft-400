@@ -1,5 +1,6 @@
 export enum Role {
-  ADMIN = 'admin',      // Dueño: hace TODO
-  VENDEDOR = 'vendedor', // Ventas: ve productos y crea órdenes
-  ALMACEN = 'almacen',   // Almacén: solo edita el STOCK
+  SUPER_ADMIN = 'super_admin', // Dios del sistema
+  ADMIN = 'admin',             // Dueño del negocio
+  ALMACEN = 'almacen',
+  VENDEDOR = 'vendedor',
 }

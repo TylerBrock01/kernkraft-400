@@ -1,30 +1,50 @@
-import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { Role } from '../roles/roles';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
-  // El Reflector es el que permite "leer" los metadatos que pusimos con @Roles
   constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    // 1. ¿Qué roles requiere esta ruta específica?
+    // 1. ¿Qué roles requiere esta ruta?
     const requiredRoles = this.reflector.getAllAndOverride<Role[]>(ROLES_KEY, [
-      context.getHandler(), // Mira el método (ej. create)
-      context.getClass(),   // Mira el controlador (ej. ProductsController)
+      context.getHandler(),
+      context.getClass(),
     ]);
 
-    // 2. Si la ruta no tiene el decorador @Roles, cualquiera puede pasar
+    // 2. Si no hay roles requeridos, pase libre
     if (!requiredRoles) {
       return true;
     }
 
-    // 3. Obtenemos al usuario de la petición (inyectado previamente por el JwtAuthGuard)
+    // 3. Obtenemos al usuario del JWT
     const { user } = context.switchToHttp().getRequest();
 
-    // 4. Lógica de Oro: ¿El rol del usuario está en la lista de roles permitidos?
-    // user.role debe venir del JWT que desencriptó Passport
-    return requiredRoles.some((role) => user.role === role);
+    if (!user) return false;
+
+    // --- LÓGICA DE JERARQUÍA MCU ---
+
+    // REGLA DE ORO 1: El SUPER_ADMIN es Dios.
+    // Si el usuario es Super Admin, tiene bypass total en cualquier ruta.
+    if (user.role === Role.SUPER_ADMIN) {
+      return true;
+    }
+
+    // REGLA DE ORO 2: Validación de Roles Estándar
+    const hasRole = requiredRoles.some((role) => user.role === role);
+
+    if (!hasRole) {
+      throw new ForbiddenException('No tienes el nivel de autoridad necesario para este recurso');
+    }
+
+    // REGLA DE ORO 3: Blindaje Multi-tenant (Opcional pero recomendado)
+    // Si el usuario es ADMIN o empleado, DEBE tener un businessId.
+    if (user.role !== Role.SUPER_ADMIN && !user.businessId) {
+      throw new ForbiddenException('Error de identidad: Usuario sin negocio vinculado');
+    }
+
+    return true;
   }
 }
