@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+// src/users/users.service.ts
+import { Injectable, ConflictException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -12,38 +13,62 @@ export class UsersService {
     private userRepository: Repository<User>,
   ) {}
 
-  // Este es el método que te faltaba
-  create(userData: Partial<User>) {
-    const newUser = this.userRepository.create(userData);
-    return this.userRepository.save(newUser);
+  async create(createUserDto: CreateUserDto) {
+    const { email } = createUserDto;
+
+    const existingUser = await this.userRepository.findOneBy({ email });
+    if (existingUser) {
+      throw new ConflictException('Este email ya está registrado en el motor');
+    }
+
+    const newUser = this.userRepository.create(createUserDto);
+    return await this.userRepository.save(newUser);
   }
 
-  // Para el login exclusivamente: Traemos el password
+  // LOGIN: Traemos el businessId para inyectarlo en el JWT
   async findOneWithPassword(email: string) {
     return this.userRepository.findOne({
       where: { email },
-      select: ['id', 'email', 'password', 'role', 'name'] // Aquí "forzamos" el password
+      select: ['id', 'email', 'password', 'role', 'name', 'businessId']
     });
   }
 
-  // Para todo lo demás: El password no viene
-  async findOneByEmail(email: string) {
-    return this.userRepository.findOneBy({ email });
+  // READ ALL: Solo los usuarios de MI negocio
+  async findAll(businessId: string) {
+    return await this.userRepository.find({
+      where: { businessId, isActive: true },
+      order: { id: 'DESC' }
+    });
   }
 
-  findAll() {
-    return `This action returns all users`;
+  // READ ONE: Verificación de propiedad (ID + BusinessId)
+  async findOne(id: number, businessId: string) {
+    const user = await this.userRepository.findOne({
+      where: { id, businessId }
+    });
+
+    if (!user) {
+      throw new NotFoundException(`Usuario #${id} no encontrado en su organización`);
+    }
+    return user;
   }
 
-  async findOne(id: number) {
-    return `This action returns a #${id} user`;
+  // UPDATE: Solo si el usuario pertenece al negocio del administrador
+  async update(id: number, updateUserDto: UpdateUserDto, businessId: string) {
+    const user = await this.findOne(id, businessId); // Reutilizamos findOne para validar propiedad
+
+    // Protegemos el businessId para que no se pueda cambiar de empresa vía UPDATE
+    const { businessId: _, ...updateData } = updateUserDto;
+
+    Object.assign(user, updateData);
+    return await this.userRepository.save(user);
   }
 
-  update(id: number, updateUserDto: UpdateUserDto) {
-    return `This action updates a #${id} user`;
-  }
+  // REMOVE: Soft Delete industrial
+  async remove(id: number, businessId: string) {
+    const user = await this.findOne(id, businessId);
 
-  remove(id: number) {
-    return `This action removes a #${id} user`;
+    user.isActive = false; // Mantenemos el registro por auditoría, pero lo desactivamos
+    return await this.userRepository.save(user);
   }
 }
