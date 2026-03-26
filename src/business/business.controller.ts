@@ -1,34 +1,26 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
 import { BusinessService } from './business.service';
 import { CreateBusinessDto } from './dto/create-business.dto';
-import { UpdateBusinessDto } from './dto/update-business.dto';
+import { JwtAuthGuard } from '../jwt-auth/jwt-auth.guard';
 
-@Controller('bussines')
+@Controller('business')
 export class BusinessController {
-  constructor(private readonly bussinesService: BusinessService) {}
+  constructor(private readonly businessService: BusinessService) {}
 
   @Post()
-  create(@Body() createBussineDto: CreateBusinessDto) {
-    return this.bussinesService.create(createBussineDto);
+  create(@Body() createBusinessDto: CreateBusinessDto) {
+    return this.businessService.create(createBusinessDto);
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard)
   findAll() {
-    return this.bussinesService.findAll();
+    return this.businessService.findAll();
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard)
   findOne(@Param('id') id: string) {
-    return this.bussinesService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateBussineDto: UpdateBusinessDto) {
-    return this.bussinesService.update(+id, updateBussineDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.bussinesService.remove(+id);
+    return this.businessService.findOne(id);
   }
 }

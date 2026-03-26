@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany, CreateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 
 export enum BusinessType {
@@ -16,7 +16,7 @@ export class Business {
   name: string;
 
   @Column({ unique: true })
-  slug: string; // Ejemplo: 'vask8-shop'
+  slug: string;
 
   @Column({
     type: 'enum',
@@ -26,12 +26,7 @@ export class Business {
   type: BusinessType;
 
   @Column({ type: 'jsonb', nullable: true })
-  config: {
-    primaryColor: string;
-    logoUrl: string;
-    currency: string;
-    taxRate: number;
-  };
+  config: Record<string, any>; // Colores, logos, configuración regional
 
   @Column({ default: true })
   isActive: boolean;
@@ -39,7 +34,9 @@ export class Business {
   @CreateDateColumn()
   createdAt: Date;
 
-  // Un negocio tiene muchos usuarios (Dueño, Vendedores, etc.)
+  @UpdateDateColumn()
+  updatedAt: Date;
+
   @OneToMany(() => User, (user) => user.business)
   users: User[];
 }
