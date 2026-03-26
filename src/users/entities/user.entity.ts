@@ -11,7 +11,7 @@ import {
 } from 'typeorm';
 import { Role } from '../../auth/roles/roles';
 import { Transaction } from '../../transactions/entities/transaction.entity';
-import { Business } from '../../bussines/entities/bussine.entity';
+import { Business } from '../../business/entities/business.entity';
 
 @Entity()
 export class User {

@@ -1,96 +1,77 @@
+// src/products/products.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindManyOptions, Repository } from 'typeorm';
+import { Repository, FindOptionsWhere } from 'typeorm';
 import { Product } from './entities/product.entity';
-import { Category } from '../categories/entities/category.entity';
-import { Deck } from '../decks/entities/deck.entity';
 
 @Injectable()
 export class ProductsService {
   constructor(
-    @InjectRepository(Product) private readonly productRepository: Repository<Product>,
-    @InjectRepository(Category) private readonly categoryRepository: Repository<Category>,
-    @InjectRepository(Deck) private readonly deckRepository: Repository<Deck>,
-  ) {
-  }
-  async create(createProductDto: CreateProductDto) {
-    const category = await this.categoryRepository.findOneBy({id: createProductDto.categoryId});
-    const deck = await this.deckRepository.findOneBy({id: createProductDto.categoryId});
-    if(!category || !deck) {
-      let erros: string[]= []
-      erros.push('Categoria no encontrada')
-      throw new NotFoundException(erros);
-    }
+    @InjectRepository(Product)
+    private readonly productRepository: Repository<Product>,
+  ) {}
 
-    return this.productRepository.save({...createProductDto, category,deck});
-  }
-
-  async findAll( category_id?: number, deck_id?:number, take?: number, skip?: number) {
-    const options:  FindManyOptions<Product> ={loadEagerRelations: true, order:{"id":"DESC"},take,skip}
-    if (category_id || deck_id) {
-      if(category_id){
-        options.where = {
-          category: { id: category_id }
-        }
-      }
-      if (deck_id){
-        options.where = {
-          deck: { id: deck_id }
-        }
-      }
-    }
-    if (category_id && deck_id){
-      options.where = {
-        deck: { id: deck_id },
-        category: { id: category_id }
-      }
-    }
-    const [products, total] =await this.productRepository.findAndCount(options);
-    return {products, total};
-  }
-
-  async findOne(id: number) {
-    const product = await this.productRepository.findOne({where: {id}, relations: {category: true}});
-    if (!product) throw new NotFoundException(
-      `Product #${id} not found`
-    )
-    return product;
-  }
-
-  async update(id: number, updateProductDto: UpdateProductDto) {
-    const product = await this.findOne(id);
-    if (!product) throw new NotFoundException(
-      `Product #${id} not found`
-    )
-    Object.assign(product, updateProductDto);
-
-    if(updateProductDto.categoryId){
-      const category = await this.categoryRepository.findOneBy({id: updateProductDto.categoryId});
-      if(!category){
-        let erros: string[]= []
-        erros.push('Categoria no encontrada')
-        throw new NotFoundException(erros);
-      }
-      product.category = category;
-    }
-    if(updateProductDto.deckId){
-      const deck = await this.deckRepository.findOneBy({id: updateProductDto.deckId});
-      if(!deck){
-        let erros: string[]= []
-        erros.push('Categoria no encontrada')
-        throw new NotFoundException(erros);
-      }
-      product.deck = deck;
-    }
+  // 1. CREAR: Operación atómica vinculada al negocio
+  async create(createProductDto: CreateProductDto, businessId: string) {
+    const product = this.productRepository.create({
+      ...createProductDto,
+      businessId, // El candado de seguridad
+    });
     return await this.productRepository.save(product);
   }
 
-  async remove(id: number) {
-    const product = await this.findOne(id);
-    if (!product) throw new NotFoundException('Product not found')
-    await this.productRepository.remove(product);
-    return {message : `Product #${id} REMOVED`};
+  // 2. LEER TODO: Filtrado por industria y paginación
+  async findAll(
+    businessId: string,
+    take: number = 10,
+    skip: number = 0
+  ) {
+    const where: FindOptionsWhere<Product> = {
+      businessId,
+      isActive: true
+    };
+
+    const [products, total] = await this.productRepository.findAndCount({
+      where,
+      order: { id: "DESC" },
+      take,
+      skip
+    });
+
+    return { products, total };
+  }
+
+  // 3. LEER UNO: Validación de propiedad estricta
+  async findOne(id: number, businessId: string) {
+    const product = await this.productRepository.findOne({
+      where: { id, businessId }
+    });
+
+    if (!product) {
+      throw new NotFoundException(`Producto #${id} no encontrado en este entorno industrial`);
+    }
+    return product;
+  }
+
+  // 4. ACTUALIZAR: Fusión de datos (incluye metadata JSONB)
+  async update(id: number, updateProductDto: UpdateProductDto, businessId: string) {
+    const product = await this.findOne(id, businessId);
+
+    // Object.assign se encarga de actualizar los campos básicos y el JSONB de metadata
+    Object.assign(product, updateProductDto);
+
+    return await this.productRepository.save(product);
+  }
+
+  // 5. ELIMINAR: Soft Delete para integridad de datos
+  async remove(id: number, businessId: string) {
+    const product = await this.findOne(id, businessId);
+
+    product.isActive = false;
+    await this.productRepository.save(product);
+
+    return { message: `Producto #${id} desactivado del motor universal` };
   }
 }

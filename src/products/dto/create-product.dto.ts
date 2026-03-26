@@ -1,27 +1,39 @@
-import { IsInt, IsNotEmpty, IsNumber, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, IsObject, Min, IsInt } from 'class-validator';
+import { BusinessType } from '../../business/entities/business.entity';
 
 export class CreateProductDto {
-  @(IsNotEmpty({ message: 'nombre es requerido'}))
-  @(IsString({ message: 'nombre debe ser string'}))
+  @IsNotEmpty({ message: 'El nombre es requerido' })
+  @IsString({ message: 'El nombre debe ser un texto' })
   name: string;
-  @(IsNotEmpty({ message: 'imagen es requerido'}))
-  image: string;
-  @(IsNotEmpty({ message: 'precio es requerido'}))
-  @(IsNumber({maxDecimalPlaces: 2}, { message: 'precio debe ser un numero'}))
+
+  @IsOptional()
+  @IsString({ message: 'La descripción debe ser un texto' })
+  description?: string;
+
+  @IsNotEmpty({ message: 'El slug es requerido' })
+  @IsString()
+  slug: string;
+
+  @IsNotEmpty({ message: 'El precio es requerido' })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
   price: number;
-  @(IsNotEmpty({ message: 'stock es requerido'}))
-  @(IsNumber({maxDecimalPlaces: 0}, { message: 'stock debe ser un numero'}))
+
+  @IsNotEmpty({ message: 'El stock es requerido' })
+  @IsInt()
+  @Min(0)
   stock: number;
-  @(IsNotEmpty({ message: 'categoria es requerido'}))
-  @(IsInt( { message: 'categoria debe ser un numero'}))
-  categoryId: number;
-  @(IsNotEmpty({ message: 'color es requerido'}))
-  @(IsString({ message: 'color debe ser texto'}))
-  color: string;
-  @(IsNotEmpty({ message: 'medida es requerida'}))
-  @(IsNumber({allowNaN: false, allowInfinity: false, maxDecimalPlaces: 2}, { message: 'medida debe ser un numero'}))
-  size: number;
-  @IsNotEmpty({ message: 'deck es requerido'})
-  @(IsInt( { message: 'deck debe ser un numero'}))
-  deckId: number;
+
+  @IsNotEmpty({ message: 'La imagen es requerida' })
+  @IsString()
+  image: string;
+
+  @IsNotEmpty({ message: 'El tipo de industria es requerido' })
+  @IsEnum(BusinessType)
+  type: BusinessType;
+
+  // FLEXIBILIDAD TOTAL: Aquí entra cualquier campo extra (color, talla, ingredientes)
+  @IsOptional()
+  @IsObject()
+  metadata?: Record<string, any>;
 }
