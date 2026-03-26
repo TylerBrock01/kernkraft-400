@@ -12,6 +12,7 @@ import { UploadImageModule } from './upload-image/upload-image.module';
 import { DecksModule } from './decks/decks.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
+import { BussinesModule } from './bussines/bussines.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { UsersModule } from './users/users.module';
     DecksModule,
     AuthModule,
     UsersModule,
+    BussinesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

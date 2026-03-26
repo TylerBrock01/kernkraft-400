@@ -1,7 +1,17 @@
 // src/users/entities/user.entity.ts
-import { Column, Entity, OneToMany, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  OneToMany,
+  ManyToOne,
+  JoinColumn,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn
+} from 'typeorm';
 import { Role } from '../../auth/roles/roles';
 import { Transaction } from '../../transactions/entities/transaction.entity';
+import { Business } from '../../bussines/entities/bussine.entity';
 
 @Entity()
 export class User {
@@ -17,7 +27,6 @@ export class User {
   @Column({ unique: true })
   email: string;
 
-  // El 'select: false' hace que no se envíe la pass por accidente en los GET
   @Column({ select: false })
   password: string;
 
@@ -35,6 +44,16 @@ export class User {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  // --- NUEVA LÓGICA DE MULTI-TENANCY ---
+  // Un negocio tiene muchos usuarios, pero este usuario solo pertenece a uno.
+  @ManyToOne(() => Business, (business) => business.users, { nullable: false })
+  @JoinColumn({ name: 'businessId' })
+  business: Business;
+
+  @Column()
+  businessId: string; // Este es el UUID que usaremos para filtrar TODO
+  // -------------------------------------
 
   @OneToMany(() => Transaction, (transaction) => transaction.user)
   transactions: Transaction[];
