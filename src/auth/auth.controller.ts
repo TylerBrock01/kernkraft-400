@@ -1,7 +1,5 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UnauthorizedException } from '@nestjs/common';
+import { Controller, Post, Body,Headers, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { CreateAuthDto } from './dto/create-auth.dto';
-import { UpdateAuthDto } from './dto/update-auth.dto';
 import { AuthRegisterDto } from './dto/auth-register.dto';
 
 @Controller('auth')
@@ -9,8 +7,11 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  register(@Body() dto: AuthRegisterDto) {
-    return this.authService.register(dto);
+  register(
+    @Body() dto: AuthRegisterDto,
+    @Headers('x-mcu-master-key') masterKey?: string // <--- Pedimos la llave en los headers
+  ) {
+    return this.authService.register(dto, masterKey);
   }
 
   @Post('login')

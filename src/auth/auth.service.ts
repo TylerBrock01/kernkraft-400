@@ -5,26 +5,34 @@ import { UsersService } from '../users/users.service';
 import * as bcrypt from 'bcrypt';
 import { AuthRegisterDto } from './dto/auth-register.dto';
 import { Role } from './roles/roles';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly usersService: UsersService,
-    private jwtService: JwtService
+    private jwtService: JwtService,
+    private readonly configService: ConfigService,
   ) {}
 
-  async register(dto: AuthRegisterDto) {
-    // 1. Verificamos que el DTO traiga el businessId (regla del MCU)
-    const { password, ...userData } = dto;
+  async register(dto: AuthRegisterDto, adminSecret?: string) {
+    const { password, role, ...userData } = dto;
+
+    if (role === Role.SUPER_ADMIN) {
+      // Usamos el ConfigService para mayor seguridad
+      const masterKey = this.configService.get<string>('SUPER_ADMIN_MASTER_KEY');
+
+      if (adminSecret !== masterKey) {
+        throw new UnauthorizedException('No tienes permiso para crear una cuenta de este nivel');
+      }
+    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // 2. Pasamos TODO el userData (que ya debe incluir businessId)
     return this.usersService.create({
       ...userData,
       password: hashedPassword,
-      role: dto.role || Role.VENDEDOR,
-      // El businessId ya viene dentro de userData si el DTO está bien hecho
+      role: role || Role.VENDEDOR,
     });
   }
 
