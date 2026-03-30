@@ -33,4 +33,24 @@ export class BusinessService {
     if (!business) throw new NotFoundException('Business no encontrado');
     return business;
   }
+  // src/business/business.service.ts
+
+  async toggleStatus(id: string, isActive: boolean) {
+    const business = await this.findOne(id); // Reutiliza tu buscador por ID
+
+    business.isActive = isActive;
+    const updatedBusiness = await this.businessRepository.save(business);
+
+    // LOG INDUSTRIAL: Es vital saber quién apagó la luz
+    console.log(`[KILLSWITCH] Business ${business.name} (${id}) set to isActive: ${isActive}`);
+
+    return {
+      message: `Negocio ${isActive ? 'activado' : 'desactivado'} exitosamente`,
+      business: {
+        id: updatedBusiness.id,
+        name: updatedBusiness.name,
+        isActive: updatedBusiness.isActive
+      }
+    };
+  }
 }
