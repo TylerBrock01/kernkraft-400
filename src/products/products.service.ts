@@ -1,5 +1,5 @@
 // src/products/products.service.ts
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -14,11 +14,36 @@ export class ProductsService {
   ) {}
 
   // 1. CREAR: Operación atómica vinculada al negocio
+  private generateSlug(name: string): string {
+    return name
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s-]/g, '') // Quita caracteres especiales
+      .replace(/[\s_-]+/g, '-') // Cambia espacios por guiones
+      .replace(/^-+|-+$/g, ''); // Limpia guiones en las puntas
+  }
+
+  // 2. EL MetODO CREATE ACTUALIZADO
   async create(createProductDto: CreateProductDto, businessId: string) {
+    // Generamos el slug automáticamente antes de guardar
+    const slug = this.generateSlug(createProductDto.name);
+    // Dentro del método create, después de generar el slug:
+    const existingProduct = await this.productRepository.findOne({
+      where: { slug, businessId }
+    });
+
+    if (existingProduct) {
+      // Si el slug ya existe en ESTE negocio, le añadimos un número aleatorio o lanzamos error
+      throw new BadRequestException('Ya tienes un producto con un nombre muy similar.');
+    }
+
+    // Creamos la instancia del producto inyectando el businessId y el slug
     const product = this.productRepository.create({
       ...createProductDto,
-      businessId, // El candado de seguridad
+      slug: slug, // <--- Aquí ocurre la magia
+      businessId: businessId,
     });
+
     return await this.productRepository.save(product);
   }
 
