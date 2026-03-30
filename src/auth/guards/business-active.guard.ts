@@ -4,7 +4,7 @@ import {
   CanActivate,
   ExecutionContext,
   ForbiddenException,
-  NotFoundException
+  NotFoundException, BadRequestException
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -17,37 +17,37 @@ export class BusinessActiveGuard implements CanActivate {
     @InjectRepository(Business)
     private readonly businessRepository: Repository<Business>,
   ) {}
+  // src/auth/guards/business-active.guard.ts
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const { user } = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest();
 
-    // REGLA 1: El SUPER_ADMIN es inmune al Killswitch (Él es quien lo opera)
-    if (user.role === Role.SUPER_ADMIN) {
-      return true;
+    // ESTRATEGIA DE EXTRACCIÓN:
+    // 1. Intentamos sacar el ID del Token (si el usuario está logueado)
+    // 2. Si no hay token, lo buscamos en los Query Params (?businessId=...)
+    const businessId = request.user?.businessId || request.query.businessId;
+
+    if (!businessId) {
+      throw new BadRequestException('Se requiere un Business ID para acceder a este recurso.');
     }
 
-    // REGLA 2: Si no tiene businessId y no es SuperAdmin, algo está mal
-    if (!user.businessId) {
-      throw new ForbiddenException('Usuario sin negocio vinculado');
-    }
+    // BYPASS: El SuperAdmin siempre pasa, incluso si el negocio está "apagado"
+    if (request.user?.role === Role.SUPER_ADMIN) return true;
 
-    // REGLA 3: Consultar el estado real en la base de datos
     const business = await this.businessRepository.findOne({
-      where: { id: user.businessId },
-      select: ['isActive', 'name'] // Solo traemos lo necesario para ser veloces
+      where: { id: businessId },
+      select: ['isActive', 'name']
     });
 
-    if (!business) {
-      throw new NotFoundException('El negocio vinculado ya no existe');
-    }
-
-    // EL MOMENTO DE LA VERDAD (Killswitch)
-    if (!business.isActive) {
+    if (!business || !business.isActive) {
       throw new ForbiddenException(
-        `El acceso a "${business.name}" ha sido suspendido por el administrador de la plataforma.`
+        business
+          ? `El negocio "${business.name}" está temporalmente suspendido.`
+          : 'Negocio no encontrado.'
       );
     }
 
     return true;
   }
+
 }

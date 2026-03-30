@@ -28,7 +28,6 @@ import { GetBusinessId } from '../auth/decorators/get-business-id.decorator';
 import { BusinessActiveGuard } from '../auth/guards/business-active.guard'; // <--- Importante
 
 @Controller('products')
-@UseGuards(BusinessActiveGuard) // <--- El tercer sello de seguridad
 export class ProductsController {
   constructor(
     private readonly productsService: ProductsService,
@@ -36,7 +35,7 @@ export class ProductsController {
   ) {}
 
   @Roles(Role.ADMIN, Role.ALMACEN)
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, BusinessActiveGuard)
   @Post()
   create(
     @Body() createProductDto: CreateProductDto,
@@ -45,20 +44,21 @@ export class ProductsController {
     return this.productsService.create(createProductDto, businessId);
   }
 
-  @UseGuards(JwtAuthGuard) // Protegemos el acceso para identificar el negocio
+  @UseGuards(BusinessActiveGuard)
   @Get()
   findAll(
     @Query() query: GetProductQueryDto,
-    @GetBusinessId() businessId: string // <--- Filtro automático por inquilino
+    @Query('businessId') businessId: string // <--- El cliente envía el ID por la URL
   ) {
-    const take = query.take ? query.take : 10;
-    const skip = query.skip ? query.skip : 0;
+    if (!businessId) throw new BadRequestException('ID de negocio requerido para ver el catálogo');
 
-    // El motor industrial ya no depende de categorías/decks fijos
+    const take = query.take || 10;
+    const skip = query.skip || 0;
+
     return this.productsService.findAll(businessId, take, skip);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(BusinessActiveGuard)
   @Get(':id')
   findOne(
     @Param('id', IdValidationPipe) id: string,
@@ -68,7 +68,7 @@ export class ProductsController {
   }
 
   @Roles(Role.ADMIN, Role.ALMACEN)
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, BusinessActiveGuard)
   @Patch(':id')
   update(
     @Param('id', IdValidationPipe) id: string,
@@ -79,7 +79,7 @@ export class ProductsController {
   }
 
   @Roles(Role.ADMIN)
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, BusinessActiveGuard)
   @Delete(':id')
   remove(
     @Param('id', IdValidationPipe) id: string,
@@ -89,7 +89,7 @@ export class ProductsController {
   }
 
   @Roles(Role.ADMIN, Role.ALMACEN)
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, BusinessActiveGuard)
   @Post('upload-image')
   @UseInterceptors(FileInterceptor('file'))
   uploadImage(@UploadedFile() file: Express.Multer.File) {
