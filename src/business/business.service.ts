@@ -35,6 +35,21 @@ export class BusinessService {
   }
   // src/business/business.service.ts
 
+  async update(id: string, updateBusinessDto: UpdateBusinessDto) {
+    const business = await this.findOne(id); // Validamos que existe primero
+
+    // Fusionamos los cambios
+    const updated = this.businessRepository.merge(business, updateBusinessDto);
+
+    try {
+      return await this.businessRepository.save(updated);
+    } catch (error) {
+      if (error.code === '23505') {
+        throw new ConflictException('Ese nombre de negocio ya está ocupado por otro inquilino');
+      }
+      throw error;
+    }
+  }
   async toggleStatus(id: string, isActive: boolean) {
     const business = await this.findOne(id); // Reutiliza tu buscador por ID
 
