@@ -20,65 +20,43 @@ export class TransactionsService {
     private readonly couponService: CouponsService
   ) {}
 
-  async create(createTransactionDto: CreateTransactionDto, user: User) {
+  async create(createTransactionDto: CreateTransactionDto, user: User, businessId: string) {
     return await this.productRepository.manager.transaction(async (manager) => {
 
-      // 1. CÁLCULO INICIAL DE TELEMETRÍA (Bruto)
       let total = 0;
       const itemsParaProcesar = [];
 
+      // 1. CÁLCULO E INTEGRIDAD
       for (const item of createTransactionDto.contents) {
-        const product = await manager.findOneBy(Product, { id: item.productId });
-        if (!product) throw new NotFoundException(`Producto ${item.productId} no encontrado`);
+        const product = await manager.findOne(Product, {
+          where: { id: item.productId, businessId: businessId }
+        });
+
+        if (!product) throw new NotFoundException(`Producto #${item.productId} no encontrado`);
         if (item.quantity > product.stock) throw new BadRequestException(`No hay stock de ${product.name}`);
 
         total += Number(product.price) * item.quantity;
         itemsParaProcesar.push({ product, quantity: item.quantity });
       }
 
-      // 2. PROTOCOLO DE CUPONES: Validación y Cálculo
-      let couponName = null;
-      let couponDiscount = 0;
-
-      if (createTransactionDto.coupon) {
-        // Inyectamos el total actual para validar compra mínima en el Service
-        const res = await this.couponService.applyCoupon({
-          coupon_name: createTransactionDto.coupon,
-          total: total // 👈 Validación minPurchase blindada
-        });
-
-        // Lógica de Descuento Dual (Fijo vs Porcentual)
-        if (res.coupon.isPercentage) {
-          couponDiscount = (res.coupon.discount / 100) * total;
-        } else {
-          // Aseguramos que el descuento no sea mayor que el total (Seguridad CAZA)
-          couponDiscount = Math.min(res.coupon.discount, total);
-        }
-
-        couponName = res.coupon.name;
-        total -= couponDiscount;
-
-        // 3. CONSUMO DE HARDWARE (CUPÓN)
-        // Lo marcamos como usado dentro de la transacción
-        await this.couponService.confirmCouponUsage(couponName);
-      }
-
-      // 4. INSERT DE LA TRANSACCIÓN
-      const nuevaTransaccion = await manager.insert(Transaction, {
+      // 2. INSERT DE LA CABECERA (Bypass de .save)
+      // .insert() es más rápido y no dispara procesos de "update" accidentales
+      const resultadoTransaccion = await manager.insert(Transaction, {
         total: total,
-        coupon: couponName,
-        couponDiscount: couponDiscount,
-        user: { id: user.id }
+        businessId: businessId,
+        user: { id: user.id }, // Solo pasamos el ID para evitar que intente actualizar al usuario
+        coupon: null,
+        couponDiscount: 0
       });
 
-      const transactionId = nuevaTransaccion.identifiers[0].id;
+      const transactionId = resultadoTransaccion.identifiers[0].id;
 
-      // 5. ACTUALIZACIÓN DE STOCK Y DETALLES
+      // 3. ACTUALIZACIÓN DE STOCK Y DETALLES
       for (const item of itemsParaProcesar) {
-        await manager.update(Product, item.product.id, {
-          stock: item.product.stock - item.quantity
-        });
+        // A) Decremento Atómico (SQL Directo)
+        await manager.decrement(Product, { id: item.product.id }, "stock", item.quantity);
 
+        // B) INSERT DEL DETALLE (Bypass de .save)
         await manager.insert(TransactionContent, {
           price: item.product.price,
           quantity: item.quantity,
@@ -88,12 +66,13 @@ export class TransactionsService {
       }
 
       return {
-        message: 'Sale created successfully. Mainframe updated.',
+        message: 'Mainframe updated. Sale recorded via Low-Level Insert.',
         transactionId,
         finalTotal: total
       };
     });
   }
+
   async findAll(user: User, transactionDate?: string, take: number = 10, skip: number = 0) {
 
     const options: FindManyOptions<Transaction> = {

@@ -7,25 +7,32 @@ export class Transaction {
   @PrimaryGeneratedColumn()
   id: number;
 
+  @Column()
+  businessId: string; // VITAL para el aislamiento
+
   @Column('decimal')
   total: number;
 
   @Column({type: 'timestamp', default: () => 'CURRENT_TIMESTAMP(6)'})
   transactionDate: Date;
-  @Column({ type: 'varchar',length:30, nullable: true})
+
+  @Column({ type: 'varchar', length: 30, nullable: true })
   coupon: string;
-  @Column({ type: 'decimal', nullable: true})
+
+  @Column({ type: 'decimal', nullable: true })
   couponDiscount: number;
-  @OneToMany(() => TransactionContent, (transaction) => transaction.transaction)
+
+  // El cascade puede ir aquí si quieres que al borrar la Transaction se borren los contenidos
+  @OneToMany(() => TransactionContent, (content) => content.transaction, { cascade: true })
   contents: TransactionContent[];
 
   @ManyToOne(() => User, (user) => user.transactions)
-  @JoinColumn({ name: 'userId' }) // Esto asegura que la columna se llame userId
+  @JoinColumn({ name: 'userId' })
   user: User;
 }
 
 @Entity()
-export class TransactionContent{
+export class TransactionContent {
   @PrimaryGeneratedColumn()
   id: number;
 
@@ -38,6 +45,7 @@ export class TransactionContent{
   @ManyToOne(() => Product, { eager: true })
   product: Product;
 
-  @ManyToOne(()=> Transaction, (transaction) => transaction.contents, {cascade: true})
+  // ELIMINA EL { cascade: true } DE AQUÍ ABAJO:
+  @ManyToOne(() => Transaction, (transaction) => transaction.contents)
   transaction: Transaction;
 }

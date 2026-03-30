@@ -19,8 +19,13 @@ export class TransactionsController {
   @Post()
   create(
     @Body() createTransactionDto: CreateTransactionDto,
-    @GetUser() user: User) {
-    return this.transactionsService.create(createTransactionDto,user);
+    @GetUser() user: User, // Obtenemos al vendedor/admin desde el token
+  ) {
+    // Extraemos el businessId del usuario para asegurar que la venta
+    // se registre en la empresa correcta.
+    const businessId = user.businessId;
+
+    return this.transactionsService.create(createTransactionDto, user, businessId);
   }
 
   @Roles(Role.ADMIN,Role.VENDEDOR)
