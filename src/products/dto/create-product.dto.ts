@@ -10,9 +10,9 @@ export class CreateProductDto {
   @IsString({ message: 'La descripción debe ser un texto' })
   description?: string;
 
-  @IsNotEmpty({ message: 'El slug es requerido' })
+  @IsOptional()
   @IsString()
-  slug: string;
+  slug?: string;
 
   @IsNotEmpty({ message: 'El precio es requerido' })
   @IsNumber({ maxDecimalPlaces: 2 })
@@ -24,9 +24,9 @@ export class CreateProductDto {
   @Min(0)
   stock: number;
 
-  @IsNotEmpty({ message: 'La imagen es requerida' })
+  @IsOptional()
   @IsString()
-  image: string;
+  image?: string;
 
   @IsNotEmpty({ message: 'El tipo de industria es requerido' })
   @IsEnum(BusinessType)
