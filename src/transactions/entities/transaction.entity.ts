@@ -1,6 +1,16 @@
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToMany, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { Product } from '../../products/entities/product.entity';
 import { User } from '../../users/entities/user.entity';
+export enum TransactionType {
+  SALE = 'SALE',     // Venta normal (se va y no vuelve)
+  RENTAL = 'RENTAL', // Renta (tiene que regresar)
+}
+
+export enum RentalStatus {
+  OUT = 'OUT',           // El equipo está con el cliente
+  RETURNED = 'RETURNED', // El equipo ya regresó al almacén
+  LATE = 'LATE',         // Se pasó de la fecha de entrega
+}
 
 export enum TransactionStatus {
   COMPLETED = 'COMPLETED',
@@ -25,6 +35,29 @@ export class Transaction {
 
   @Column({ name: 'user_id', nullable: true }) // Columna física para el ID del vendedor
   userId: number;
+  // 🔄 ¿Es venta o renta?
+  @Column({
+    type: 'enum',
+    enum: TransactionType,
+    default: TransactionType.SALE
+  })
+  type: TransactionType;
+
+  // 📅 Fecha en la que el cliente debe devolver el equipo
+  @Column({ type: 'timestamp', nullable: true })
+  returnDate: Date;
+
+  // 💰 Dinero extra que se cobra como seguro (no cuenta como venta/ganancia)
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  depositAmount: number;
+
+  // 📦 Estado actual del equipo rentado
+  @Column({
+    type: 'enum',
+    enum: RentalStatus,
+    nullable: true
+  })
+  rentalStatus: RentalStatus;
 
   @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
   total: number;

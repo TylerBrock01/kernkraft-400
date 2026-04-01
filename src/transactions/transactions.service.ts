@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Transaction, TransactionContent, TransactionStatus } from './entities/transaction.entity';
+import { RentalStatus, Transaction, TransactionContent, TransactionStatus, TransactionType } from './entities/transaction.entity';
 import { Between, FindManyOptions, FindOptionsWhere, Repository } from 'typeorm';
 import { Product } from '../products/entities/product.entity';
 import { endOfDay, isValid, parseISO, startOfDay } from 'date-fns';
@@ -20,11 +20,17 @@ export class TransactionsService {
     @InjectRepository(Product) private readonly productRepository: Repository<Product> ,
     private readonly couponService: CouponsService
   ) {}
-
   async create(createTransactionDto: CreateTransactionDto, user: User, businessId: string) {
     if (!user?.id) {
       throw new BadRequestException('Error crítico: El vendedor no está identificado en el sistema.');
     }
+
+    // ⛺ VALIDACIÓN PREVIA DE RENTA
+    const isRental = createTransactionDto.type === TransactionType.RENTAL;
+    if (isRental && !createTransactionDto.returnDate) {
+      throw new BadRequestException('Operación denegada: Las rentas exigen una fecha de devolución (returnDate).');
+    }
+
     return await this.transactionRepository.manager.transaction(async (manager) => {
       let total = 0;
       const itemsParaProcesar = [];
@@ -36,51 +42,72 @@ export class TransactionsService {
         });
 
         if (!product) throw new NotFoundException(`Producto #${item.productId} no disponible`);
-        if (item.quantity > product.stock) throw new BadRequestException(`Stock insuficiente: ${product.name}`);
+        if (item.quantity > product.stock) throw new BadRequestException(`Stock insuficiente para: ${product.name}`);
 
+        // El total siempre es el precio del producto * cantidad (Ganancia pura)
         total += Number(product.price) * item.quantity;
         itemsParaProcesar.push({ product, quantity: item.quantity });
       }
 
-      // 2. LÓGICA DE CUPONES (Mantenemos tu excelente lógica de telemetría)
+      // 2. LÓGICA DE CUPONES
       let couponName = null;
       let couponDiscount = 0;
       if (createTransactionDto.coupon) {
-        // ... (Llamada a couponService y cálculos de descuento)
+        // Tu lógica de validación de cupones va aquí
         // total -= couponDiscount;
       }
 
-      // 3. CREAR CABECERA (Usando las columnas físicas que definimos)
+      // 3. CREAR CABECERA (Inyección del ADN Híbrido)
+      const deposit = isRental ? (createTransactionDto.depositAmount || 0) : 0;
+
       const transaction = manager.create(Transaction, {
         businessId: businessId,
-        userId: user.id, // 👈 Directo a la columna física user_id
-        total: total,
+        userId: user.id,
+        total: total, // 👈 Pura ganancia para la analítica
         coupon: couponName,
-        couponDiscount: couponDiscount
+        couponDiscount: couponDiscount,
+
+        // ⛺ NUEVOS CAMPOS DE RENTA
+        type: createTransactionDto.type || TransactionType.SALE,
+        rentalStatus: isRental ? RentalStatus.OUT : null,
+        returnDate: createTransactionDto.returnDate || null,
+        depositAmount: deposit
       });
 
       const savedTransaction = await manager.save(transaction);
 
       // 4. CREAR DETALLES Y BAJAR STOCK
       for (const item of itemsParaProcesar) {
-        // Bajar stock de forma atómica
+        // 📦 Bajamos el stock en AMBOS casos. Si es venta, se fue. Si es renta, el cliente lo tiene físicamente.
         await manager.decrement(Product, { id: item.product.id }, "stock", item.quantity);
 
-        // Crear el renglón del detalle
         const content = manager.create(TransactionContent, {
-          transactionId: savedTransaction.id, // 👈 Enlace directo
-          productId: item.product.id,       // 👈 Enlace directo
+          transactionId: savedTransaction.id,
+          productId: item.product.id,
           quantity: item.quantity,
-          price: item.product.price         // Snapshot
+          price: item.product.price
         });
 
         await manager.save(content);
       }
 
+      // 5. CÁLCULO FINAL PARA EL CAJERO
+      const grandTotal = total - couponDiscount + deposit;
+
       return {
-        message: 'Transaction finalized. Mainframe synchronized.',
+        message: isRental ? 'Renta activa. Equipo fuera de almacén.' : 'Venta procesada. Mainframe sincronizado.',
         transactionId: savedTransaction.id,
-        finalTotal: total
+        type: savedTransaction.type,
+
+        // 💵 Desglose financiero claro para el frontend/ticket
+        financials: {
+          subtotal: total,
+          discount: couponDiscount,
+          depositRetained: deposit,
+          grandTotalToCharge: grandTotal // 👈 Lo que el cliente debe pagar hoy en mostrador
+        },
+
+        returnDate: savedTransaction.returnDate
       };
     });
   }
@@ -131,6 +158,7 @@ export class TransactionsService {
       businessId: user.businessId // Para confirmar el aislamiento en el frontend
     };
   }
+
   async findOne(id: number) {
     const transaction = await this.transactionRepository.findOne({where :{ id},relations: {contents:true}})
     console.log(transaction);
