@@ -12,6 +12,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { BusinessModule } from './business/business.module';
 import { AuditLogsModule } from './audit-logs/audit-logs.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { AuditLogsModule } from './audit-logs/audit-logs.module';
     UsersModule,
     BusinessModule,
     AuditLogsModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
