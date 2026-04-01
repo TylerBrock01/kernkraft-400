@@ -47,7 +47,7 @@ export class SeederService {
           isActive: true
         } as any);
 
-        // await queryRunner.manager.save(product);
+        await queryRunner.manager.save(product);
         console.log(`[+] Producto inyectado: ${p.name} (Slug: ${generatedSlug})`);
       }
       // 3. INYECCIÓN DE TRANSACCIONES (Historial de Ventas)
@@ -67,12 +67,26 @@ export class SeederService {
 
         // Creamos los renglones (detalles) de la venta
         for (const item of tData.items) {
+
+          // 🧠 BUSCADOR DINÁMICO: Obtenemos el ID real del producto
+          const dbProduct = await queryRunner.manager.findOne(Product, {
+            where: {
+              id: item.productName,
+              businessId: tData.businessId
+            }
+          });
+
+          if (!dbProduct) {
+            throw new Error(`[ABORTADO] El producto "${item.productName}" no se encontró en la base de datos.`);
+          }
+
           const content = queryRunner.manager.create(TransactionContent, {
             transactionId: savedTransaction.id,
-            productId: item.productId,
+            productId: dbProduct.id, // 👈 ¡Inyectamos el ID real generado por Postgres!
             quantity: item.quantity,
-            price: item.price // Snapshot del precio en ese momento
+            price: item.price
           });
+
           await queryRunner.manager.save(content);
         }
       }

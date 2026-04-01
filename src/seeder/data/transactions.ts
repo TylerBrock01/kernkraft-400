@@ -13,8 +13,8 @@ export const seedTransactions = [
     status: 'COMPLETED',
     transactionDate: new Date('2026-03-25T14:30:00Z'),
     items: [
-      { productId: 1, quantity: 1, price: 25000 }, // Laptop Pro
-      { productId: 2, quantity: 1, price: 1500 }   // Teclado
+      { productName: 1, quantity: 1, price: 25000 }, // Laptop Pro
+      { productName: 2, quantity: 1, price: 1500 }   // Teclado
     ]
   },
   {
@@ -24,7 +24,7 @@ export const seedTransactions = [
     status: 'COMPLETED',
     transactionDate: new Date('2026-03-28T10:15:00Z'),
     items: [
-      { productId: 2, quantity: 1, price: 1500 }
+      { productName: 2, quantity: 1, price: 1500 }
     ]
   },
 
@@ -38,7 +38,7 @@ export const seedTransactions = [
     status: 'COMPLETED',
     transactionDate: new Date('2026-03-30T09:00:00Z'),
     items: [
-      { productId: 3, quantity: 1, price: 500 }
+      { productName: 3, quantity: 1, price: 500 }
     ]
   },
   {
@@ -48,7 +48,7 @@ export const seedTransactions = [
     status: 'COMPLETED',
     transactionDate: new Date('2026-03-31T08:30:00Z'),
     items: [
-      { productId: 3, quantity: 2, price: 500 }
+      { productName: 3, quantity: 2, price: 500 }
     ]
   },
   {
@@ -58,7 +58,7 @@ export const seedTransactions = [
     status: 'CANCELLED', // Una venta cancelada para probar auditoría
     transactionDate: new Date('2026-03-31T11:00:00Z'),
     items: [
-      { productId: 4, quantity: 1, price: 850 } // Mesa plegable
+      { productName: 4, quantity: 1, price: 850 } // Mesa plegable
     ]
   }
 ];
