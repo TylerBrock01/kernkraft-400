@@ -10,6 +10,7 @@ import { CouponsService } from '../coupons/coupons.service';
 import { User } from '../users/entities/user.entity';
 import { Role } from '../auth/roles/roles';
 import { AuditLog } from '../audit-logs/entities/audit-log.entity';
+import { ReturnRentalDto } from './dto/return-rental.dto';
 
 @Injectable()
 export class TransactionsService {
@@ -245,6 +246,64 @@ export class TransactionsService {
         message: `Venta #${id} anulada con éxito. Inventario restaurado.`,
         transactionId: id,
         status: transaction.status
+      };
+    });
+  }
+
+  async returnRental(transactionId: number, returnDto: ReturnRentalDto, user: User, businessId: string) {
+    return await this.transactionRepository.manager.transaction(async (manager) => {
+
+      // 1. BUSCAR EL CONTRATO Y BLINDARLO
+      const transaction = await manager.findOne(Transaction, {
+        where: { id: transactionId, businessId: businessId }
+      });
+
+      if (!transaction) throw new NotFoundException(`Contrato de renta #${transactionId} no encontrado.`);
+      if (transaction.type !== TransactionType.RENTAL) throw new BadRequestException('Error: Este ticket es una venta normal, no hay nada que devolver.');
+      if (transaction.rentalStatus === RentalStatus.RETURNED) throw new BadRequestException('Alerta: Este equipo ya fue devuelto y procesado anteriormente.');
+
+      // 2. CONTABILIDAD DE DAÑOS Y PENALIZACIONES
+      const penalty = returnDto.penaltyAmount || 0;
+
+      if (penalty > transaction.depositAmount) {
+        throw new BadRequestException(`Operación rechazada: No puedes cobrar una penalidad ($${penalty}) mayor al depósito retenido ($${transaction.depositAmount}).`);
+      }
+
+      const refundAmount = transaction.depositAmount - penalty;
+
+      // 💸 MAGIA CONTABLE: Si hay penalidad, se suma a la ganancia real del negocio.
+      if (penalty > 0) {
+        transaction.total = Number(transaction.total) + penalty;
+      }
+
+      // 3. RECUPERACIÓN DE INVENTARIO (La Logística)
+      // Buscamos todos los renglones (productos) que se llevó en este ticket
+      const contents = await manager.find(TransactionContent, {
+        where: { transactionId: transaction.id }
+      });
+
+      for (const item of contents) {
+        // 📦 Restauramos el stock de la bodega
+        await manager.increment(Product, { id: item.productId }, "stock", item.quantity);
+      }
+
+      // 4. SELLAR EL CONTRATO
+      transaction.rentalStatus = RentalStatus.RETURNED;
+      // Opcional: Si tienes un campo 'notes' en Transaction, podrías guardar el penaltyReason ahí.
+
+      await manager.save(transaction);
+
+      // 5. REPORTE FINANCIERO AL CAJERO
+      return {
+        message: 'Equipo devuelto. Contrato cerrado e inventario restaurado.',
+        transactionId: transaction.id,
+        financials: {
+          originalDeposit: transaction.depositAmount,
+          penaltyApplied: penalty,
+          penaltyReason: returnDto.penaltyReason || 'Devolución limpia',
+          refundToCustomer: refundAmount, // 👈 Lo que el cajero saca de la caja para darle al cliente
+          newTotalRevenue: transaction.total // Ganancia actualizada del ticket
+        }
       };
     });
   }

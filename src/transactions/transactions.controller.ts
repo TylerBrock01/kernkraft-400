@@ -10,6 +10,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { User } from '../users/entities/user.entity';
 import { CancelTransactionDto } from './dto/cancel-transaction';
+import { ReturnRentalDto } from './dto/return-rental.dto';
 
 @Controller('transactions')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -73,5 +74,14 @@ export class TransactionsController {
       businessId,
       cancelDto.reason // 🛡️ Pasamos el motivo al service
     );
+  }
+
+  @Post(':id/return')
+  async returnRental(
+    @Param('id') id: number,
+    @Body() returnDto: ReturnRentalDto,
+    @GetUser() user: User
+  ) {
+    return this.transactionsService.returnRental(id, returnDto, user, user.businessId);
   }
 }
