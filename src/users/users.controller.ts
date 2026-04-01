@@ -17,14 +17,15 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/roles/roles';
 import { GetBusinessId } from '../auth/decorators/get-business-id.decorator';
+import { BusinessActiveGuard } from '../auth/guards/business-active.guard';
 
 @Controller('users')
-@UseGuards(JwtAuthGuard, RolesGuard) // Protegemos todo el controlador
+@Roles(Role.ADMIN)
+@UseGuards(JwtAuthGuard, RolesGuard,BusinessActiveGuard)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   // Crear usuarios adicionales (Ej: El admin creando vendedores)
-  @Roles(Role.ADMIN)
   @Post()
   create(
     @Body() createUserDto: CreateUserDto,
@@ -35,7 +36,6 @@ export class UsersController {
     return this.usersService.create(createUserDto);
   }
 
-  @Roles(Role.ADMIN)
   @Get()
   findAll(@GetBusinessId() businessId: string) {
     // Solo devolvemos usuarios de MI empresa
@@ -50,7 +50,6 @@ export class UsersController {
     return this.usersService.findOne(+id, businessId);
   }
 
-  @Roles(Role.ADMIN)
   @Patch(':id')
   update(
     @Param('id') id: string,
@@ -60,7 +59,6 @@ export class UsersController {
     return this.usersService.update(+id, updateUserDto, businessId);
   }
 
-  @Roles(Role.ADMIN)
   @Delete(':id')
   remove(
     @Param('id') id: string,
