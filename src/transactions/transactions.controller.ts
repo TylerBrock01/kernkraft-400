@@ -9,6 +9,7 @@ import { JwtAuthGuard } from '../jwt-auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { User } from '../users/entities/user.entity';
+import { CancelTransactionDto } from './dto/cancel-transaction';
 
 @Controller('transactions')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -57,11 +58,20 @@ export class TransactionsController {
   }
 
   @Patch(':id/cancel')
-  @Roles(Role.ADMIN) // Solo un Admin debería tener el poder de revertir una venta
+  @Roles(Role.ADMIN) // Solo el alto mando cancela
   async cancel(
     @Param('id', ParseIntPipe) id: number,
     @GetUser() user: User,
+    @Body() cancelDto: CancelTransactionDto, // 📥 Capturamos el motivo aquí
   ) {
-    return this.transactionsService.cancel(id, user, user.businessId);
+    // Extraemos el businessId del usuario inyectado por el Guard
+    const businessId = user.businessId;
+
+    return this.transactionsService.cancel(
+      id,
+      user,
+      businessId,
+      cancelDto.reason // 🛡️ Pasamos el motivo al service
+    );
   }
 }

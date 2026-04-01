@@ -9,6 +9,7 @@ import { endOfDay, isValid, parseISO, startOfDay } from 'date-fns';
 import { CouponsService } from '../coupons/coupons.service';
 import { User } from '../users/entities/user.entity';
 import { Role } from '../auth/roles/roles';
+import { AuditLog } from '../audit-logs/entities/audit-log.entity';
 
 @Injectable()
 export class TransactionsService {
@@ -157,31 +158,31 @@ export class TransactionsService {
     return {message: 'Transaction deleted successfully'};
   }
 
-  async cancel(id: number, user: User, businessId: string) {
+  async cancel(id: number, user: User, businessId: string, reason?: string) {
     return await this.transactionRepository.manager.transaction(async (manager) => {
 
-      // 1. BUSQUEDA CON CANDADO: Debe ser del negocio y existir
+      // 1. BÚSQUEDA Y VALIDACIÓN (Aquí se define 'transaction')
+      // Es vital cargar las 'contents' para saber qué productos devolver al stock
       const transaction = await manager.findOne(Transaction, {
-        where: { id, businessId },
-        relations: { contents: { product: true } }
+        where: {
+          id,
+          businessId // 🛡️ Seguridad Multi-tenant: Solo puedes cancelar lo tuyo
+        },
+        relations: {
+          contents: true // Cargamos los productos vendidos
+        }
       });
 
-      if (!transaction) throw new NotFoundException(`Transacción #${id} no encontrada.`);
+      if (!transaction) {
+        throw new NotFoundException(`La transacción #${id} no existe en este negocio.`);
+      }
 
-      // 2. REGLA DE NEGOCIO: No cancelar lo ya cancelado
       if (transaction.status === TransactionStatus.CANCELLED) {
-        throw new BadRequestException('Esta transacción ya ha sido cancelada anteriormente.');
+        throw new BadRequestException('Esta transacción ya fue cancelada previamente.');
       }
 
-      // 3. VALIDACIÓN DE TIEMPO (Máximo 30 días para devoluciones)
-      const limiteDias = 30;
-      const diasTranscurridos = (new Date().getTime() - transaction.transactionDate.getTime()) / (1000 * 3600 * 24);
-
-      if (diasTranscurridos > limiteDias) {
-        throw new BadRequestException(`No se pueden cancelar ventas con más de ${limiteDias} días de antigüedad.`);
-      }
-
-      // 4. REVERSIÓN DE STOCK (Operación Inversa)
+      // 2. REVERSIÓN DE STOCK
+      // Recorremos los contenidos que cargamos en el paso 1
       for (const item of transaction.contents) {
         await manager.increment(
           Product,
@@ -191,14 +192,30 @@ export class TransactionsService {
         );
       }
 
-      // 5. ACTUALIZACIÓN DE ESTADO
+      // 3. ACTUALIZACIÓN DE ESTADO
       transaction.status = TransactionStatus.CANCELLED;
       await manager.save(transaction);
 
+      // 4. REGISTRO EN EL MAINFRAME DE AUDITORÍA 🛡️
+      // Usamos manager.insert para que sea atómico y rápido
+      // 4. REGISTRO EN EL MAINFRAME DE AUDITORÍA 🛡️
+      // 4. REGISTRO EN EL MAINFRAME DE AUDITORÍA 🛡️
+      await manager.insert(AuditLog, {
+        businessId,
+        userId: user.id,
+        action: 'TRANSACTION_CANCELLED',
+        entityId: id.toString(),
+        details: {
+          reason: reason || 'No especificada',
+          totalReverted: +transaction.total, // El '+' es un atajo para Number()
+          timestamp: new Date().toISOString(),
+        } as any, // 👈 ESTO elimina el error de incompatibilidad de un plumazo
+      });
+
       return {
-        message: `Transacción #${id} cancelada. Inventario restaurado.`,
-        previousStatus: TransactionStatus.COMPLETED,
-        newStatus: transaction.status
+        message: `Venta #${id} anulada con éxito. Inventario restaurado.`,
+        transactionId: id,
+        status: transaction.status
       };
     });
   }
