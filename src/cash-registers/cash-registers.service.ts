@@ -4,12 +4,16 @@ import { Repository } from 'typeorm';
 import { CashRegister, RegisterStatus } from './entities/cash-register.entity';
 import { OpenRegisterDto } from './dto/open-register.dto';
 import { User } from '../users/entities/user.entity';
+import { Transaction } from '../transactions/entities/transaction.entity';
+import { CloseRegisterDto } from './dto/close-register.dto';
 
 @Injectable()
 export class CashRegistersService {
   constructor(
     @InjectRepository(CashRegister)
     private readonly cashRegisterRepository: Repository<CashRegister>,
+    @InjectRepository(Transaction)
+    private readonly transactionRepository: Repository<Transaction>,
   ) {}
 
   async openRegister(user: User, openDto: OpenRegisterDto) {
@@ -42,6 +46,68 @@ export class CashRegistersService {
       registerId: newRegister.id,
       openingBalance: newRegister.openingBalance,
       openedAt: newRegister.openedAt,
+    };
+  }
+
+  async closeRegister(user: User, closeDto: CloseRegisterDto) {
+    // 1. BUSCAR CAJA ABIERTA
+    const register = await this.cashRegisterRepository.findOne({
+      where: {
+        userId: user.id,
+        businessId: user.businessId,
+        status: RegisterStatus.OPEN,
+      },
+    });
+
+    if (!register) {
+      throw new BadRequestException('No tienes ninguna caja abierta para cerrar.');
+    }
+
+    // 2. CALCULAR VENTAS DURANTE EL TURNO (QueryBuilder)
+    const salesResult = await this.transactionRepository
+      .createQueryBuilder('t')
+      .select('SUM(t.total)', 'totalSales')
+      .where('t.userId = :userId', { userId: user.id })
+      .andWhere('t.businessId = :businessId', { businessId: user.businessId })
+      .andWhere('t.status = :status', { status: 'COMPLETED' })
+      .andWhere('t.transactionDate >= :openedAt', { openedAt: register.openedAt })
+      .getRawOne();
+
+    const totalSales = parseFloat(salesResult.totalSales || 0);
+
+    // 3. MATEMÁTICAS DEL ARQUEO
+    // openingBalance viene de DB como string (por ser decimal), lo pasamos a float
+    const openingBalance = parseFloat(register.openingBalance.toString());
+    const expectedBalance = openingBalance + totalSales;
+    const actualBalance = closeDto.actualBalance;
+    const difference = actualBalance - expectedBalance;
+
+    // 4. SELLADO DE CAJA
+    register.expectedBalance = expectedBalance;
+    register.actualBalance = actualBalance;
+    register.difference = difference;
+    register.notes = closeDto.notes || null;
+    register.status = RegisterStatus.CLOSED;
+    register.closedAt = new Date();
+
+    await this.cashRegisterRepository.save(register);
+
+    // 5. DIAGNÓSTICO PARA EL FRONTEND
+    let statusMsg = 'CUADRADO PERFECTO 🎯';
+    if (difference > 0) statusMsg = 'SOBRANTE DE CAJA 🤑';
+    if (difference < 0) statusMsg = 'FALTANTE DE CAJA 🚨';
+
+    return {
+      message: 'Turno cerrado y arqueo finalizado.',
+      diagnosis: statusMsg,
+      summary: {
+        openingBalance,
+        totalSales,
+        expectedBalance,
+        actualBalance,
+        difference,
+        notes: register.notes
+      }
     };
   }
 }
