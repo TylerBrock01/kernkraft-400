@@ -11,18 +11,17 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { BusinessActiveGuard } from '../auth/guards/business-active.guard';
 
 @Controller('cash-registers')
-@UseGuards(JwtAuthGuard, RolesGuard,BusinessActiveGuard)
+@Roles(Role.ADMIN,Role.VENDEDOR)
+@UseGuards(JwtAuthGuard, RolesGuard, BusinessActiveGuard)
 export class CashRegistersController {
   constructor(private readonly cashRegistersService: CashRegistersService) {}
 
   @Post('open')
-  @Roles(Role.ADMIN,Role.VENDEDOR)
   async open(@GetUser() user: User, @Body() openDto: OpenRegisterDto) {
     return this.cashRegistersService.openRegister(user, openDto);
   }
 
   @Post('close')
-  @Roles(Role.ADMIN,Role.VENDEDOR)
   async close(@GetUser() user: User, @Body() closeDto: CloseRegisterDto) {
     return this.cashRegistersService.closeRegister(user, closeDto);
   }
