@@ -93,7 +93,7 @@ export class SeederService {
 
       await queryRunner.commitTransaction();
       console.log('--- [MCU_OS] SISTEMA CARGADO: TRANSACCIONES DISPONIBLES ---');
-      await queryRunner.commitTransaction();
+      // await queryRunner.commitTransaction();
       console.log('--- [MCU_OS] INVENTARIO MULTI-TENANT CARGADO CON ÉXITO ---');
 
     } catch (error) {
