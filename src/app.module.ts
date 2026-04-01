@@ -14,6 +14,7 @@ import { BusinessModule } from './business/business.module';
 import { AuditLogsModule } from './audit-logs/audit-logs.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { CashRegistersModule } from './cash-registers/cash-registers.module';
+import { TicketsModule } from './tickets/tickets.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { CashRegistersModule } from './cash-registers/cash-registers.module';
     AuditLogsModule,
     AnalyticsModule,
     CashRegistersModule,
+    TicketsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
