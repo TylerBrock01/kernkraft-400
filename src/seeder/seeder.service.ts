@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { Product } from '../products/entities/product.entity';
 import { products as seedProducts } from './data/products';
+import { seedTransactions } from './data/transactions';
+import { Transaction, TransactionContent } from '../transactions/entities/transaction.entity';
 
 @Injectable()
 export class SeederService {
@@ -45,10 +47,38 @@ export class SeederService {
           isActive: true
         } as any);
 
-        await queryRunner.manager.save(product);
+        // await queryRunner.manager.save(product);
         console.log(`[+] Producto inyectado: ${p.name} (Slug: ${generatedSlug})`);
       }
+      // 3. INYECCIÓN DE TRANSACCIONES (Historial de Ventas)
+      console.log('--- [MCU_OS] Inyectando Historial de Transacciones... ---');
 
+      for (const tData of seedTransactions) {
+        // Creamos la cabecera de la venta
+        const transaction = queryRunner.manager.create(Transaction, {
+          businessId: tData.businessId,
+          userId: tData.userId,
+          total: tData.total,
+          status: tData.status as any,
+          transactionDate: tData.transactionDate
+        });
+
+        const savedTransaction = await queryRunner.manager.save(transaction);
+
+        // Creamos los renglones (detalles) de la venta
+        for (const item of tData.items) {
+          const content = queryRunner.manager.create(TransactionContent, {
+            transactionId: savedTransaction.id,
+            productId: item.productId,
+            quantity: item.quantity,
+            price: item.price // Snapshot del precio en ese momento
+          });
+          await queryRunner.manager.save(content);
+        }
+      }
+
+      await queryRunner.commitTransaction();
+      console.log('--- [MCU_OS] SISTEMA CARGADO: TRANSACCIONES DISPONIBLES ---');
       await queryRunner.commitTransaction();
       console.log('--- [MCU_OS] INVENTARIO MULTI-TENANT CARGADO CON ÉXITO ---');
 
