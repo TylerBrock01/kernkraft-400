@@ -11,9 +11,10 @@ import { GetUser } from '../auth/decorators/get-user.decorator';
 import { User } from '../users/entities/user.entity';
 import { CancelTransactionDto } from './dto/cancel-transaction';
 import { ReturnRentalDto } from './dto/return-rental.dto';
+import { BusinessActiveGuard } from '../auth/guards/business-active.guard';
 
 @Controller('transactions')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard,BusinessActiveGuard)
 export class TransactionsController {
   constructor(private readonly transactionsService: TransactionsService) {}
 
@@ -77,6 +78,7 @@ export class TransactionsController {
   }
 
   @Post(':id/return')
+  @Roles(Role.ADMIN, Role.VENDEDOR) // Solo el alto mando cancela
   async returnRental(
     @Param('id') id: number,
     @Body() returnDto: ReturnRentalDto,
