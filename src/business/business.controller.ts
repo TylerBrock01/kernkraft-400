@@ -19,8 +19,6 @@ export class BusinessController {
 
   // 2. AUDITORÍA GLOBAL: Solo el Dios del sistema ve todos los inquilinos
   @Get()
-  @Roles(Role.SUPER_ADMIN)
-  @UseGuards(JwtAuthGuard, RolesGuard)
   findAll() {
     return this.businessService.findAll();
   }
