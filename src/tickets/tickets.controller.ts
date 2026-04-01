@@ -1,7 +1,9 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, UseGuards } from '@nestjs/common';
 import { TicketsService } from './tickets.service';
+import { BusinessActiveGuard } from '../auth/guards/business-active.guard';
 
 @Controller('tickets')
+@UseGuards(BusinessActiveGuard)
 export class TicketsController {
   constructor(private readonly ticketsService: TicketsService) {}
 
