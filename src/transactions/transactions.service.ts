@@ -3,7 +3,7 @@ import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Transaction, TransactionContent, TransactionStatus } from './entities/transaction.entity';
-import { Between, FindManyOptions, Repository } from 'typeorm';
+import { Between, FindManyOptions, FindOptionsWhere, Repository } from 'typeorm';
 import { Product } from '../products/entities/product.entity';
 import { endOfDay, isValid, parseISO, startOfDay } from 'date-fns';
 import { CouponsService } from '../coupons/coupons.service';
@@ -84,52 +84,53 @@ export class TransactionsService {
       };
     });
   }
+
   async findAll(user: User, transactionDate?: string, take: number = 10, skip: number = 0) {
 
-    const options: FindManyOptions<Transaction> = {
-      // CORRECTO: user y contents son hermanos, ambos hijos de Transaction
-      relations: {
-        user: true,           // Traemos al vendedor de la transacción
-        contents: {
-          product: true       // Traemos el producto de cada línea de contenido
-        }
-      },
-      where: {},
-      order: { transactionDate: 'DESC' },
-      take,
-      skip
+    // 1. EL CANDADO BASE (Multi-tenancy)
+    // Nadie sale de su propio negocio, sea admin o no.
+    const baseWhere: FindOptionsWhere<Transaction> = {
+      businessId: user.businessId
     };
 
-    // 2. REGLA DE ORO: Si NO es admin, filtramos por su ID.
-    // Si ES admin, dejamos el 'where' vacío para que traiga TODO.
+    // 2. REGLA DE ROL (Filtro de Vendedor)
+    // Si no es ADMIN, solo ve lo que él mismo vendió.
     if (user.role !== Role.ADMIN) {
-      options.where = { user: { id: user.id } };
+      baseWhere.userId = user.id; // Usamos la columna física userId que definimos
     }
 
-    // 3. Filtro de Fecha (manteniendo la seguridad)
+    // 3. FILTRO DE FECHA
     if (transactionDate) {
       const date = parseISO(transactionDate);
       if (!isValid(date)) throw new BadRequestException('Fecha inválida');
 
-      const startDate = startOfDay(date);
-      const endDate = endOfDay(date);
-
-      // Combinamos el filtro de fecha con lo que ya tengamos en 'where' (el user.id si no es admin)
-      options.where = {
-        ...options.where,
-        transactionDate: Between(startDate, endDate)
-      };
+      baseWhere.transactionDate = Between(
+        startOfDay(date),
+        endOfDay(date)
+      );
     }
 
-    const [transactions, total] = await this.transactionRepository.findAndCount(options);
+    // 4. EJECUCIÓN CON RELACIONES
+    const [transactions, total] = await this.transactionRepository.findAndCount({
+      where: baseWhere,
+      relations: {
+        user: true,           // Quién vendió
+        contents: {
+          product: true       // Qué vendió
+        }
+      },
+      order: { transactionDate: 'DESC' },
+      take,
+      skip
+    });
 
     return {
       transactions,
       total,
-      page: Math.ceil(skip / take) + 1
+      page: Math.ceil(skip / take) + 1,
+      businessId: user.businessId // Para confirmar el aislamiento en el frontend
     };
   }
-
   async findOne(id: number) {
     const transaction = await this.transactionRepository.findOne({where :{ id},relations: {contents:true}})
     console.log(transaction);
