@@ -2,10 +2,23 @@ import { Column, CreateDateColumn, Entity, JoinColumn, ManyToMany, ManyToOne, On
 import { Product } from '../../products/entities/product.entity';
 import { User } from '../../users/entities/user.entity';
 
+export enum TransactionStatus {
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+  REFUNDED = 'REFUNDED', // Devolución parcial o total
+}
+
 @Entity('transactions') // Nombre de tabla explícito
 export class Transaction {
   @PrimaryGeneratedColumn()
   id: number;
+
+  @Column({
+    type: 'enum',
+    enum: TransactionStatus,
+    default: TransactionStatus.COMPLETED
+  })
+  status: TransactionStatus;
 
   @Column({ name: 'business_id' }) // Mantenemos el aislamiento
   businessId: string;

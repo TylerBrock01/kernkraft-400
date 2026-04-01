@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { TransactionsService } from './transactions.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
@@ -11,11 +11,11 @@ import { GetUser } from '../auth/decorators/get-user.decorator';
 import { User } from '../users/entities/user.entity';
 
 @Controller('transactions')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class TransactionsController {
   constructor(private readonly transactionsService: TransactionsService) {}
 
   @Roles(Role.ADMIN,Role.VENDEDOR)
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Post()
   create(
     @Body() createTransactionDto: CreateTransactionDto,
@@ -29,7 +29,6 @@ export class TransactionsController {
   }
 
   @Roles(Role.ADMIN,Role.VENDEDOR)
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Get()
   findAll(
     @Query('transactionDate') transactionDate: string,
@@ -41,22 +40,28 @@ export class TransactionsController {
   }
 
   @Roles(Role.ADMIN,Role.VENDEDOR)
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Get(':id')
   findOne(@Param('id',IdValidationPipe) id: string) {
     return this.transactionsService.findOne(+id);
   }
 
   @Roles(Role.ADMIN)
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateTransactionDto: UpdateTransactionDto) {
     return this.transactionsService.update(+id, updateTransactionDto);
   }
   @Roles(Role.ADMIN)
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Delete(':id')
   remove(@Param('id',IdValidationPipe) id: string) {
     return this.transactionsService.remove(+id);
+  }
+
+  @Patch(':id/cancel')
+  @Roles(Role.ADMIN) // Solo un Admin debería tener el poder de revertir una venta
+  async cancel(
+    @Param('id', ParseIntPipe) id: number,
+    @GetUser() user: User,
+  ) {
+    return this.transactionsService.cancel(id, user, user.businessId);
   }
 }

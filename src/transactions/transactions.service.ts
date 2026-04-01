@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Transaction, TransactionContent } from './entities/transaction.entity';
+import { Transaction, TransactionContent, TransactionStatus } from './entities/transaction.entity';
 import { Between, FindManyOptions, Repository } from 'typeorm';
 import { Product } from '../products/entities/product.entity';
 import { endOfDay, isValid, parseISO, startOfDay } from 'date-fns';
@@ -25,10 +25,6 @@ export class TransactionsService {
       throw new BadRequestException('Error crítico: El vendedor no está identificado en el sistema.');
     }
     return await this.transactionRepository.manager.transaction(async (manager) => {
-      console.log('--- AUDITORÍA DE SEGURIDAD ---');
-      console.log('Objeto User completo:', user);
-      console.log('ID del Usuario:', user?.id);
-      console.log('Business ID:', businessId);
       let total = 0;
       const itemsParaProcesar = [];
 
@@ -159,5 +155,51 @@ export class TransactionsService {
     }
     await this.transactionRepository.remove(transaction);
     return {message: 'Transaction deleted successfully'};
+  }
+
+  async cancel(id: number, user: User, businessId: string) {
+    return await this.transactionRepository.manager.transaction(async (manager) => {
+
+      // 1. BUSQUEDA CON CANDADO: Debe ser del negocio y existir
+      const transaction = await manager.findOne(Transaction, {
+        where: { id, businessId },
+        relations: { contents: { product: true } }
+      });
+
+      if (!transaction) throw new NotFoundException(`Transacción #${id} no encontrada.`);
+
+      // 2. REGLA DE NEGOCIO: No cancelar lo ya cancelado
+      if (transaction.status === TransactionStatus.CANCELLED) {
+        throw new BadRequestException('Esta transacción ya ha sido cancelada anteriormente.');
+      }
+
+      // 3. VALIDACIÓN DE TIEMPO (Máximo 30 días para devoluciones)
+      const limiteDias = 30;
+      const diasTranscurridos = (new Date().getTime() - transaction.transactionDate.getTime()) / (1000 * 3600 * 24);
+
+      if (diasTranscurridos > limiteDias) {
+        throw new BadRequestException(`No se pueden cancelar ventas con más de ${limiteDias} días de antigüedad.`);
+      }
+
+      // 4. REVERSIÓN DE STOCK (Operación Inversa)
+      for (const item of transaction.contents) {
+        await manager.increment(
+          Product,
+          { id: item.productId },
+          "stock",
+          item.quantity
+        );
+      }
+
+      // 5. ACTUALIZACIÓN DE ESTADO
+      transaction.status = TransactionStatus.CANCELLED;
+      await manager.save(transaction);
+
+      return {
+        message: `Transacción #${id} cancelada. Inventario restaurado.`,
+        previousStatus: TransactionStatus.COMPLETED,
+        newStatus: transaction.status
+      };
+    });
   }
 }
