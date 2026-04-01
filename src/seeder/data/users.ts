@@ -1,15 +1,16 @@
-import { User } from '../../users/entities/user.entity';
-import { Role } from '../../auth/roles/roles';
-
-export const users: Partial<User>[] = [
+export const seedUsers = [
   {
-    email: "test@test.com",
-    password: "vask81",
-    role : Role.ADMIN
+    name: "pirata1",
+    email: "pirata1@pirata.com",
+    password: "Password123!",
+    businessId: "5d5493f4-222f-40fe-8ab9-d29eba41203b",
+    role: "admin"
   },
   {
-    email: "vendedor@vask81.com",
-    password: "vask81",
-    role: Role.VENDEDOR
-  }
+    name: "pirata",
+    email: "pirat1@pirata.com",
+    password: "Password123!",
+    businessId: "5d5493f4-222f-40fe-8ab9-d29eba41203b",
+    role: "admin"
+  },
 ];

@@ -1,42 +1,67 @@
+// 🚨 Reemplaza estos valores con los UUIDs reales cuando crees las empresas en Postman
+export const BUSINESS_A_ID = "d80bad8b-3f51-4ca6-bb7a-72dcd9d14c02"; // Empresa A: Tecnología
+export const BUSINESS_B_ID = "73a8c36e-f49a-46e2-86a6-78eca22baaf0"; // Empresa B: Eventos y Tianguis
+
 export const products = [
-    {
-      "name": "Element",
-      "image": "https://res.cloudinary.com/tyler-brock/image/upload/v1771105241/arxcowzh7m8s6qktxlxu.jpg",
-      "price": 1500,
-      "stock": 50,
-      "categoryId": 6,
-      "color": "blanca",
-      "size": 8,
-      "deckId": 1
+  // ==========================================
+  // 💻 INVENTARIO: EMPRESA A (Tech Store)
+  // ==========================================
+  {
+    name: "Laptop Pro de 16'' - Edición 2030",
+    description: "Equipo de alto rendimiento ideal para desarrolladores y control de servidores.",
+    price: 25000,
+    stock: 14,
+    type: "retail",
+    isActive: true,
+    metadata: {
+      color: "Space Grey",
+      ram: "32GB",
+      processor: "M4 Max"
     },
-    {
-      "name": "penny",
-      "image": "https://res.cloudinary.com/tyler-brock/image/upload/v1771103169/gaemw5vukab3ma4phzz0.jpg",
-      "price": 800,
-      "stock": 50,
-      "categoryId":6,
-      "color": "blanca",
-      "size": 4,
-      "deckId": 2
+    businessId: BUSINESS_A_ID
+  },
+  {
+    name: "Teclado Mecánico MCU",
+    description: "Switches azules para programar a la velocidad de la luz sin ghosting.",
+    price: 1500,
+    stock: 40,
+    type: "retail",
+    isActive: true,
+    metadata: {
+      layout: "Español",
+      switch: "Blue"
     },
-    {
-      "name": "Element",
-      "image": "https://res.cloudinary.com/tyler-brock/image/upload/v1771102959/chinnhslz3q035bzfe8l.jpg",
-      "price": 1500,
-      "stock": 1,
-      "categoryId": 6,
-      "color": "blanca",
-      "size": 8,
-      "deckId": 1
+    businessId: BUSINESS_A_ID
+  },
+
+  // ==========================================
+  // ⛺ INVENTARIO: EMPRESA B (Carpas y Eventos)
+  // ==========================================
+  {
+    name: "Carpa 3x3 Uso Rudo",
+    description: "Toldo impermeable con estructura de acero, ideal para tianguis, mercados y eventos al aire libre.",
+    price: 1200,
+    stock: 15,
+    type: "retail",
+    isActive: true,
+    metadata: {
+      dimensions: "3x3 metros",
+      color: "Blanco",
+      material: "Lona Reforzada Oxford"
     },
-    {
-      "name": "penny",
-      "image": "https://res.cloudinary.com/tyler-brock/image/upload/v1771103032/i2y1pxdgoly6npzhoftv.jpg",
-      "price": 800,
-      "stock": 1,
-      "categoryId": 6,
-      "color": "blanca",
-      "size": 6,
-      "deckId": 2
-    }
-]
+    businessId: BUSINESS_B_ID
+  },
+  {
+    name: "Mesa Plegable Portafolio 1.8m",
+    description: "Mesa resistente y fácil de transportar. Soporta hasta 100kg de carga.",
+    price: 850,
+    stock: 25,
+    type: "retail",
+    isActive: true,
+    metadata: {
+      length: "1.8 metros",
+      folding: true
+    },
+    businessId: BUSINESS_B_ID
+  }
+];

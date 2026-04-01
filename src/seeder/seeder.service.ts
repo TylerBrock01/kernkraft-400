@@ -1,58 +1,62 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { Product } from '../products/entities/product.entity';
-import { DataSource, In, Repository } from 'typeorm';
-import { categories } from './data/categories';
-import { products } from './data/products';
-import { Coupon } from '../coupons/entities/coupon.entity';
-import { decks } from './data/decks';
-import { User } from '../users/entities/user.entity';
-import { coupons } from './data/coupons';
+import { products as seedProducts } from './data/products';
 
 @Injectable()
 export class SeederService {
-  constructor(
-    // @InjectRepository(Product) private readonly productRepository: Repository<Product>,
-    // @InjectRepository(Coupon) private readonly couponRepository: Repository<Coupon>,
-    // @InjectRepository(User) private readonly userRepository: Repository<User>,
-    private dataSource : DataSource
-  ) {}
-  async onModuleInit(){
-    const connection =this.dataSource
-    await connection.dropDatabase();
-    await connection.synchronize();
-    console.log('from onModuleInit');
+  constructor(private dataSource: DataSource) {}
+// async onModuleInit(){
+//   const connection =this.dataSource
+//   await connection.dropDatabase();
+//   await connection.synchronize();
+//   console.log('from onModuleInit');
+// }
+
+  async seed() {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      console.log('--- [MCU_OS] INICIANDO INYECCIÓN MULTI-TENANT ---');
+
+      // 🚨 ADVERTENCIA: No hacemos dropDatabase() para proteger los negocios creados en Postman.
+
+      // 2. INYECCIÓN DE PRODUCTOS
+      console.log('--- [MCU_OS] Inyectando Productos... ---');
+      for (const p of seedProducts) {
+
+        if (!p.businessId || p.businessId.includes('PEGA_AQUI')) {
+          throw new Error(`[ABORTADO] Falta configurar el UUID real para el producto: ${p.name}`);
+        }
+
+        // 🧠 ALGORITMO MCU: Generación automática de Slug
+        const generatedSlug = p.name
+          .toLowerCase()
+          .trim()
+          .replace(/[^\w\s-]/g, '') // Elimina caracteres especiales (comillas, acentos raros)
+          .replace(/[\s_-]+/g, '-') // Reemplaza espacios por guiones
+          .replace(/^-+|-+$/g, ''); // Limpia guiones perdidos al inicio o final
+
+        const product = queryRunner.manager.create(Product, {
+          ...p,
+          slug: generatedSlug, // 👈 INYECTAMOS EL SLUG AQUÍ
+          isActive: true
+        } as any);
+
+        await queryRunner.manager.save(product);
+        console.log(`[+] Producto inyectado: ${p.name} (Slug: ${generatedSlug})`);
+      }
+
+      await queryRunner.commitTransaction();
+      console.log('--- [MCU_OS] INVENTARIO MULTI-TENANT CARGADO CON ÉXITO ---');
+
+    } catch (error) {
+      console.error('--- [MCU_OS] FALLO CRÍTICO EN CARGA ---', error.message);
+      await queryRunner.rollbackTransaction();
+    } finally {
+      await queryRunner.release();
+    }
   }
-  // async seed(){
-  //   await this.couponRepository.save(coupons)
-  //   for await (const seedProduct of products){
-  //     const product = new Product();
-  //     product.name = seedProduct.name;
-  //     product.stock = seedProduct.stock
-  //     product.image = seedProduct.image
-  //     product.price = seedProduct.price
-  //     await this.productRepository.save(product);
-  //
-  //   }
-  //
-  //   // Dentro de tu función de seeding
-  //   for (const seedCoupon of coupons) {
-  //     // Comprobamos si el cupón ya existe para evitar errores de llave única (name)
-  //     const exists = await this.couponRepository.findOneBy({ name: seedCoupon.name });
-  //
-  //     if (!exists) {
-  //       const coupon = new Coupon();
-  //
-  //       // Inyección masiva de propiedades del seed al objeto Entity
-  //       Object.assign(coupon, seedCoupon);
-  //
-  //       // Guardado en el Mainframe de Render
-  //       await this.couponRepository.save(coupon);
-  //       console.log(`[VASK8_OS] Protocolo inyectado: ${coupon.name}`);
-  //     } else {
-  //       console.log(`[VASK8_OS] Salto de seguridad: ${seedCoupon.name} ya está en el sistema.`);
-  //     }
-  //   }
-  //   console.log('from seeder');
-  // }
 }

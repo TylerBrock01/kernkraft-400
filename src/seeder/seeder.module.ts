@@ -3,6 +3,8 @@ import { SeederService } from './seeder.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { typeOrmConfig } from '../config/typerorm.config';
+import { Product } from '../products/entities/product.entity';
+import { User } from '../users/entities/user.entity';
 
 @Module({
   imports: [
@@ -13,7 +15,7 @@ import { typeOrmConfig } from '../config/typerorm.config';
       useFactory: typeOrmConfig,
       inject: [ConfigService],
     }),
-    // TypeOrmModule.forFeature([Product,Category,Coupon,Deck,User]),
+    TypeOrmModule.forFeature([Product,User]),
   ],
   providers: [SeederService]
 })
