@@ -8,9 +8,10 @@ import { CloseRegisterDto } from './dto/close-register.dto';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Role } from '../auth/roles/roles';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { BusinessActiveGuard } from '../auth/guards/business-active.guard';
 
 @Controller('cash-registers')
-@UseGuards(JwtAuthGuard, RolesGuard) // 🛡️ Todo requiere estar logueado
+@UseGuards(JwtAuthGuard, RolesGuard,BusinessActiveGuard)
 export class CashRegistersController {
   constructor(private readonly cashRegistersService: CashRegistersService) {}
 
