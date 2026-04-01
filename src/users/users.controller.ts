@@ -20,13 +20,13 @@ import { GetBusinessId } from '../auth/decorators/get-business-id.decorator';
 import { BusinessActiveGuard } from '../auth/guards/business-active.guard';
 
 @Controller('users')
-@Roles(Role.ADMIN)
-@UseGuards(JwtAuthGuard, RolesGuard,BusinessActiveGuard)
+@UseGuards(JwtAuthGuard, RolesGuard,BusinessActiveGuard) // Protegemos todo el controlador
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   // Crear usuarios adicionales (Ej: El admin creando vendedores)
   @Post()
+  @Roles(Role.ADMIN)
   create(
     @Body() createUserDto: CreateUserDto,
     @GetBusinessId() businessId: string
@@ -37,12 +37,14 @@ export class UsersController {
   }
 
   @Get()
+  @Roles(Role.ADMIN)
   findAll(@GetBusinessId() businessId: string) {
     // Solo devolvemos usuarios de MI empresa
     return this.usersService.findAll(businessId);
   }
 
   @Get(':id')
+  @Roles(Role.ADMIN)
   findOne(
     @Param('id') id: string,
     @GetBusinessId() businessId: string
@@ -51,6 +53,7 @@ export class UsersController {
   }
 
   @Patch(':id')
+  @Roles(Role.ADMIN)
   update(
     @Param('id') id: string,
     @Body() updateUserDto: UpdateUserDto,
@@ -60,6 +63,7 @@ export class UsersController {
   }
 
   @Delete(':id')
+  @Roles(Role.ADMIN)
   remove(
     @Param('id') id: string,
     @GetBusinessId() businessId: string
