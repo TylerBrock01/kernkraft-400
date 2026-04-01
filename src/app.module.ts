@@ -13,6 +13,7 @@ import { UsersModule } from './users/users.module';
 import { BusinessModule } from './business/business.module';
 import { AuditLogsModule } from './audit-logs/audit-logs.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { CashRegistersModule } from './cash-registers/cash-registers.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
     BusinessModule,
     AuditLogsModule,
     AnalyticsModule,
+    CashRegistersModule,
   ],
   controllers: [AppController],
   providers: [AppService],
