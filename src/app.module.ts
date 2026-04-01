@@ -15,6 +15,7 @@ import { AuditLogsModule } from './audit-logs/audit-logs.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { CashRegistersModule } from './cash-registers/cash-registers.module';
 import { TicketsModule } from './tickets/tickets.module';
+import { CatalogModule } from './catalog/catalog.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { TicketsModule } from './tickets/tickets.module';
     AnalyticsModule,
     CashRegistersModule,
     TicketsModule,
+    CatalogModule,
   ],
   controllers: [AppController],
   providers: [AppService],
