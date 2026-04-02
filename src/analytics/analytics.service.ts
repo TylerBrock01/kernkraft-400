@@ -83,4 +83,79 @@ export class AnalyticsService {
       }))
     };
   }
+
+  // src/analytics/analytics.service.ts
+
+  async getInvestorMetrics(user: User) {
+    const { businessId } = user;
+    const now = new Date();
+
+    // 🗓️ 1. MATEMÁTICA DE CALENDARIO
+    // Mes Actual (Desde el día 1 a las 00:00:00 hasta hoy)
+    const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    // Mes Anterior (Desde el día 1 del mes pasado hasta el último día del mes pasado)
+    const startOfPreviousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const endOfPreviousMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+
+    // 📊 2. EXTRACCIÓN DE DATOS (MES ACTUAL)
+    const currentMonthStats = await this.transactionRepository
+      .createQueryBuilder('t')
+      .select('SUM(t.total)', 'revenue')
+      .where('t.businessId = :businessId', { businessId })
+      .andWhere('t.status = :status', { status: 'COMPLETED' })
+      .andWhere('t.transactionDate >= :startDate', { startDate: startOfCurrentMonth })
+      .getRawOne();
+
+    // 📉 3. EXTRACCIÓN DE DATOS (MES ANTERIOR)
+    const previousMonthStats = await this.transactionRepository
+      .createQueryBuilder('t')
+      .select('SUM(t.total)', 'revenue')
+      .where('t.businessId = :businessId', { businessId })
+      .andWhere('t.status = :status', { status: 'COMPLETED' })
+      .andWhere('t.transactionDate >= :startDate AND t.transactionDate <= :endDate', {
+        startDate: startOfPreviousMonth,
+        endDate: endOfPreviousMonth
+      })
+      .getRawOne();
+
+    // Limpieza de nulos (por si no vendieron nada en todo el mes)
+    const currentRevenue = parseFloat(currentMonthStats.revenue || 0);
+    const previousRevenue = parseFloat(previousMonthStats.revenue || 0);
+
+    // 🧮 4. FÓRMULA FINANCIERA DEL MoM (Month-over-Month Growth)
+    let growthPercentage = 0;
+
+    if (previousRevenue > 0) {
+      // Fórmula clásica: ((Nuevo - Viejo) / Viejo) * 100
+      growthPercentage = ((currentRevenue - previousRevenue) / previousRevenue) * 100;
+    } else if (currentRevenue > 0) {
+      // Si el mes pasado vendieron $0 y este mes vendieron algo, el crecimiento es técnicamente infinito.
+      // Para efectos de UI, lo topamos a 100%.
+      growthPercentage = 100;
+    }
+
+    // Nombres de los meses para el Frontend
+    const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+    return {
+      businessId,
+      kpi: 'Month-over-Month Growth (MoM)',
+      metrics: {
+        currentMonth: {
+          label: monthNames[now.getMonth()],
+          revenue: currentRevenue
+        },
+        previousMonth: {
+          label: monthNames[startOfPreviousMonth.getMonth()],
+          revenue: previousRevenue
+        },
+        growth: {
+          percentage: parseFloat(growthPercentage.toFixed(2)), // Redondeamos a 2 decimales
+          trend: growthPercentage >= 0 ? 'UP' : 'DOWN', // Para pintar la flechita verde o roja en el frontend
+          isPositive: growthPercentage >= 0
+        }
+      }
+    };
+  }
 }

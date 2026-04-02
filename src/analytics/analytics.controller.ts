@@ -17,4 +17,8 @@ export class AnalyticsController {
   async getWeekly(@GetUser() user: User) {
     return this.analyticsService.getWeeklySnapshot(user);
   }
+  @Get('investor')
+  getInvestorMetrics(@GetUser() user: User) {
+    return this.analyticsService.getInvestorMetrics(user);
+  }
 }
