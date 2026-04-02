@@ -42,6 +42,11 @@ export class CreateTransactionDto {
   // ⛺ NUEVOS CAMPOS: MÓDULO DE RENTAS (MCU)
   // ==========================================
 
+  // 👤 CLIENTE (Opcional para ventas de mostrador, clave para rentas)
+  @IsOptional()
+  @IsInt({ message: 'El ID del cliente debe ser un número entero válido' })
+  customerId?: number;
+
   @IsOptional()
   @IsEnum(TransactionType, {
     message: 'El tipo de transacción debe ser SALE (Venta) o RENTAL (Renta)'

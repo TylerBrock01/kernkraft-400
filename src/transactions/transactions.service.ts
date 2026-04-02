@@ -65,6 +65,7 @@ export class TransactionsService {
       const transaction = manager.create(Transaction, {
         businessId: businessId,
         userId: user.id,
+        customerId: createTransactionDto.customerId || null, // 👈 EL ESLABÓN DEL CRM
         total: total, // 👈 Pura ganancia para la analítica
         coupon: couponName,
         couponDiscount: couponDiscount,
