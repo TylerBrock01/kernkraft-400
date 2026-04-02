@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, Param, ParseIntPipe } from '@nestjs/common';
 import { StockAdjustmentsService } from './stock-adjustments.service';
 import { CreateStockAdjustmentDto } from './dto/create-stock-adjustment.dto';
 import { JwtAuthGuard } from '../jwt-auth/jwt-auth.guard';
@@ -26,5 +26,13 @@ export class StockAdjustmentsController {
   @Get()
   findAll(@GetUser() user: User) {
     return this.stockAdjustmentsService.findAll(user.businessId);
+  }
+  // @ts-ignore
+  @Get(':id')
+  findOne(
+    @Param('id', ParseIntPipe) id: number,
+    @GetUser() user: User
+  ) {
+    return this.stockAdjustmentsService.findOne(id, user.businessId);
   }
 }

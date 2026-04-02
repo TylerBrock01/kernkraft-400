@@ -68,4 +68,17 @@ export class StockAdjustmentsService {
       order: { createdAt: 'DESC' },
     });
   }
+
+  async findOne(id: number, businessId: string) {
+    const adjustment = await this.adjustmentRepository.findOne({
+      where: { id, businessId },
+      relations: ['product', 'user'],
+    });
+
+    if (!adjustment) {
+      throw new NotFoundException(`El registro de merma con ID ${id} no existe o no pertenece a este negocio.`);
+    }
+
+    return adjustment;
+  }
 }
