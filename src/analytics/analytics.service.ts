@@ -1,19 +1,20 @@
+// src/analytics/analytics.service.ts
 import { Injectable } from '@nestjs/common';
-import { CreateAnalyticsDto } from './dto/create-analytics.dto';
-import { UpdateAnalyticsDto } from './dto/update-analytics.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../users/entities/user.entity';
 import { Transaction, TransactionContent } from '../transactions/entities/transaction.entity';
+import { StockAdjustment } from '../stock-adjustments/entities/stock-adjustment.entity';
 
 @Injectable()
 export class AnalyticsService {
-
   constructor(
     @InjectRepository(Transaction)
     private readonly transactionRepository: Repository<Transaction>,
-    @InjectRepository(TransactionContent) // 🛡️ Necesitamos esta para el Top
+    @InjectRepository(TransactionContent)
     private readonly contentRepository: Repository<TransactionContent>,
+    @InjectRepository(StockAdjustment) // 🛡️ Inyectamos las mermas
+    private readonly adjustmentRepository: Repository<StockAdjustment>,
   ) {}
 
   async getWeeklySnapshot(user: User) {
@@ -21,7 +22,7 @@ export class AnalyticsService {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    // --- 📊 BLOQUE 1: ESTADÍSTICAS FINANCIERAS ---
+    // --- 📊 BLOQUE 1: INGRESOS (VENTAS Y RENTAS) ---
     const stats = await this.transactionRepository
       .createQueryBuilder('t')
       .select('SUM(t.total)', 'totalSales')
@@ -32,7 +33,18 @@ export class AnalyticsService {
       .andWhere('t.transactionDate >= :sevenDaysAgo', { sevenDaysAgo })
       .getRawOne();
 
-    // --- 🏆 BLOQUE 2: TOP 3 PRODUCTOS MÁS VENDIDOS ---
+    // --- 📉 BLOQUE 2: PÉRDIDAS (MERMAS DE INVENTARIO) ---
+    // Calculamos el costo aproximado de los artículos dados de baja
+    const losses = await this.adjustmentRepository
+      .createQueryBuilder('sa')
+      .leftJoin('sa.product', 'p')
+      .select('SUM(sa.quantity * p.price)', 'totalLossValue')
+      .addSelect('COUNT(sa.id)', 'lossEvents')
+      .where('sa.businessId = :businessId', { businessId })
+      .andWhere('sa.createdAt >= :sevenDaysAgo', { sevenDaysAgo })
+      .getRawOne();
+
+    // --- 🏆 BLOQUE 3: TOP 3 PRODUCTOS ---
     const topProducts = await this.contentRepository
       .createQueryBuilder('tc')
       .leftJoin('tc.product', 'p')
@@ -44,17 +56,25 @@ export class AnalyticsService {
       .andWhere('t.status = :status', { status: 'COMPLETED' })
       .andWhere('t.transactionDate >= :sevenDaysAgo', { sevenDaysAgo })
       .groupBy('p.name')
-      .orderBy('"totalSold"', 'DESC') // Ordenamos por cantidad
+      .orderBy('"totalSold"', 'DESC')
       .limit(3)
       .getRawMany();
+
+    // --- 🧮 CÁLCULO FINAL PARA EL DUEÑO ---
+    const grossRevenue = parseFloat(stats.totalSales || 0);
+    const estimatedLoss = parseFloat(losses.totalLossValue || 0);
+    const netProfit = grossRevenue - estimatedLoss;
 
     return {
       period: 'Últimos 7 días',
       businessId,
-      summary: {
-        totalSales: parseFloat(stats.totalSales || 0),
-        transactionCount: parseInt(stats.transactionCount || 0),
+      financials: {
+        grossRevenue, // Lo que entró a la caja
+        estimatedLoss, // Lo que costaron los equipos dañados/perdidos
+        netProfit, // La ganancia real
         averageTicket: parseFloat(stats.averageTicket || 0).toFixed(2),
+        transactionCount: parseInt(stats.transactionCount || 0),
+        lossEvents: parseInt(losses.lossEvents || 0),
       },
       topSellers: topProducts.map(p => ({
         product: p.name,
@@ -63,5 +83,4 @@ export class AnalyticsService {
       }))
     };
   }
-
 }
