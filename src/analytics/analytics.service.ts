@@ -84,17 +84,12 @@ export class AnalyticsService {
     };
   }
 
-  // src/analytics/analytics.service.ts
-
   async getInvestorMetrics(user: User) {
     const { businessId } = user;
     const now = new Date();
 
     // 🗓️ 1. MATEMÁTICA DE CALENDARIO
-    // Mes Actual (Desde el día 1 a las 00:00:00 hasta hoy)
     const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    // Mes Anterior (Desde el día 1 del mes pasado hasta el último día del mes pasado)
     const startOfPreviousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const endOfPreviousMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
 
@@ -119,43 +114,84 @@ export class AnalyticsService {
       })
       .getRawOne();
 
-    // Limpieza de nulos (por si no vendieron nada en todo el mes)
     const currentRevenue = parseFloat(currentMonthStats.revenue || 0);
     const previousRevenue = parseFloat(previousMonthStats.revenue || 0);
 
-    // 🧮 4. FÓRMULA FINANCIERA DEL MoM (Month-over-Month Growth)
+    // 🧮 4. FÓRMULA FINANCIERA DEL MoM
     let growthPercentage = 0;
-
     if (previousRevenue > 0) {
-      // Fórmula clásica: ((Nuevo - Viejo) / Viejo) * 100
       growthPercentage = ((currentRevenue - previousRevenue) / previousRevenue) * 100;
     } else if (currentRevenue > 0) {
-      // Si el mes pasado vendieron $0 y este mes vendieron algo, el crecimiento es técnicamente infinito.
-      // Para efectos de UI, lo topamos a 100%.
       growthPercentage = 100;
     }
 
-    // Nombres de los meses para el Frontend
+    // --- 🏆 NUEVO BLOQUE: RENDIMIENTO POR ACTIVO (ROI) ---
+    // 5. Buscamos los 5 productos que más dinero han metido a la caja históricamente
+    const topAssets = await this.contentRepository
+      .createQueryBuilder('tc')
+      .leftJoin('tc.transaction', 't')
+      .leftJoin('tc.product', 'p')
+      .select('p.id', 'productId')
+      .addSelect('p.name', 'productName')
+      .addSelect('p.price', 'currentPrice')
+      .addSelect('SUM(tc.quantity)', 'timesRentedOrSold')
+      .addSelect('SUM(tc.quantity * tc.price)', 'grossRevenue')
+      .where('t.businessId = :businessId', { businessId })
+      .andWhere('t.status = :status', { status: 'COMPLETED' })
+      .groupBy('p.id')
+      .addGroupBy('p.name')
+      .addGroupBy('p.price')
+      .orderBy('"grossRevenue"', 'DESC')
+      .limit(5)
+      .getRawMany();
+
+    // 6. Cruzamos esos productos estrella contra sus mermas para saber la ganancia real
+    const assetPerformance = await Promise.all(topAssets.map(async (asset) => {
+      const mermas = await this.adjustmentRepository
+        .createQueryBuilder('sa')
+        .select('SUM(sa.quantity)', 'lostUnits')
+        .where('sa.businessId = :businessId', { businessId })
+        .andWhere('sa.productId = :productId', { productId: asset.productId })
+        .getRawOne();
+
+      const lostUnits = parseInt(mermas.lostUnits || 0);
+      const gross = parseFloat(asset.grossRevenue);
+      const lossValue = lostUnits * parseFloat(asset.currentPrice); // Lo que nos costó perderlos
+      const netRevenue = gross - lossValue; // El dinero verdaderamente libre
+
+      return {
+        product: asset.productName,
+        utilization: {
+          timesRentedOrSold: parseInt(asset.timesRentedOrSold),
+          unitsLostToDamage: lostUnits
+        },
+        financials: {
+          grossRevenue: gross,       // Dinero que entró
+          lossValue: lossValue,      // Dinero que perdimos en mermas
+          netRevenue: netRevenue     // Ganancia real del producto
+        }
+      };
+    }));
+
     const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
+    // 🚀 RETORNO FINAL DEL PANEL
     return {
       businessId,
-      kpi: 'Month-over-Month Growth (MoM)',
-      metrics: {
-        currentMonth: {
-          label: monthNames[now.getMonth()],
-          revenue: currentRevenue
+      kpis: {
+        growthMoM: {
+          label: 'Crecimiento Mes a Mes',
+          currentMonth: { label: monthNames[now.getMonth()], revenue: currentRevenue },
+          previousMonth: { label: monthNames[startOfPreviousMonth.getMonth()], revenue: previousRevenue },
+          growth: {
+            percentage: parseFloat(growthPercentage.toFixed(2)),
+            trend: growthPercentage >= 0 ? 'UP' : 'DOWN',
+            isPositive: growthPercentage >= 0
+          }
         },
-        previousMonth: {
-          label: monthNames[startOfPreviousMonth.getMonth()],
-          revenue: previousRevenue
-        },
-        growth: {
-          percentage: parseFloat(growthPercentage.toFixed(2)), // Redondeamos a 2 decimales
-          trend: growthPercentage >= 0 ? 'UP' : 'DOWN', // Para pintar la flechita verde o roja en el frontend
-          isPositive: growthPercentage >= 0
-        }
+        assetPerformance: assetPerformance // 👈 Aquí inyectamos el ROI
       }
     };
   }
+
 }
