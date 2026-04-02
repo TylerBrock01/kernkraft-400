@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { RentalStatus, Transaction, TransactionContent, TransactionStatus, TransactionType } from './entities/transaction.entity';
+import { PaymentMethod, RentalStatus, Transaction, TransactionContent, TransactionStatus, TransactionType } from './entities/transaction.entity';
 import { Between, FindManyOptions, FindOptionsWhere, Repository } from 'typeorm';
 import { Product } from '../products/entities/product.entity';
 import { endOfDay, isValid, parseISO, startOfDay } from 'date-fns';
@@ -111,19 +111,21 @@ export class TransactionsService {
       // 3. CREAR CABECERA (Inyección del ADN Híbrido)
       const deposit = isRental ? (createTransactionDto.depositAmount || 0) : 0;
 
+      // 3. CREAR CABECERA DE LA TRANSACCIÓN
       const transaction = manager.create(Transaction, {
         businessId: businessId,
         userId: user.id,
-        customerId: createTransactionDto.customerId || null, // 👈 EL ESLABÓN DEL CRM
-        total: total, // 👈 Pura ganancia para la analítica
+        type: createTransactionDto.type,
+        customerId: createTransactionDto.customerId,
+        returnDate: createTransactionDto.returnDate,
+        depositAmount: createTransactionDto.depositAmount || 0,
+        total: total,
         coupon: couponName,
         couponDiscount: couponDiscount,
 
-        // ⛺ NUEVOS CAMPOS DE RENTA
-        type: createTransactionDto.type || TransactionType.SALE,
-        rentalStatus: isRental ? RentalStatus.OUT : null,
-        returnDate: createTransactionDto.returnDate || null,
-        depositAmount: deposit
+        // ✨ EL PARCHE VITAL: Guardar el método de pago que manda el frontend,
+        // o usar CASH por defecto si no mandan nada.
+        paymentMethod: createTransactionDto.paymentMethod || PaymentMethod.CASH
       });
 
       const savedTransaction = await manager.save(transaction);

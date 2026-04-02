@@ -67,10 +67,11 @@ export class CashRegistersService {
       throw new BadRequestException('No tienes ninguna caja abierta para cerrar.');
     }
 
-    // 2. CALCULAR EFECTIVO REAL (QueryBuilder)
+    // 2. CALCULAR EFECTIVO REAL (SOLO BILLETES)
     const salesResult = await this.transactionRepository
       .createQueryBuilder('t')
-      .select('SUM(t.total + t.depositAmount)', 'totalCashIn') // Eliminamos la resta manual del cupón porque 'total' ya viene neto
+      // ✨ MAGIA: Solo sumamos si el pago fue en EFECTIVO (CASH)
+      .select(`SUM(CASE WHEN t.paymentMethod = 'CASH' THEN (t.total + t.depositAmount) ELSE 0 END)`, 'totalCashIn')
       .where('t.userId = :userId', { userId: user.id })
       .andWhere('t.businessId = :businessId', { businessId: user.businessId })
       .andWhere('t.status = :status', { status: 'COMPLETED' })

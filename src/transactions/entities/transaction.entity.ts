@@ -20,6 +20,12 @@ export enum TransactionStatus {
   REFUNDED = 'REFUNDED', // Devolución parcial o total
 }
 
+export enum PaymentMethod {
+  CASH = 'CASH',           // Efectivo físico
+  CARD = 'CARD',           // Terminal bancaria
+  TRANSFER = 'TRANSFER',   // SPEI / Transferencia
+}
+
 @Entity('transactions') // Nombre de tabla explícito
 export class Transaction {
   @PrimaryGeneratedColumn()
@@ -28,6 +34,14 @@ export class Transaction {
   @Column()
   @Generated('uuid')
   uuid: string;
+
+  // 💳 Método de pago usado en esta transacción
+  @Column({
+    type: 'enum',
+    enum: PaymentMethod,
+    default: PaymentMethod.CASH
+  })
+  paymentMethod: PaymentMethod;
 
   @Column({
     type: 'enum',

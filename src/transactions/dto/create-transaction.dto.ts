@@ -13,7 +13,7 @@ import {
   Min
 } from "class-validator";
 // 🛡️ IMPORTANTE: Asegúrate de importar el Enum desde tu entidad
-import { TransactionType } from "../entities/transaction.entity";
+import { PaymentMethod, TransactionType } from "../entities/transaction.entity";
 
 export class TransactionContentsDto {
   @IsNotEmpty({ message: 'El ID del producto no puede estar vacío' })
@@ -32,15 +32,15 @@ export class CreateTransactionDto {
   @IsString()
   coupon: string;
 
+  @IsOptional()
+  @IsEnum(PaymentMethod)
+  paymentMethod?: PaymentMethod;
+
   @IsArray()
   @ArrayNotEmpty({ message: 'Los contenidos no pueden ir vacíos' })
   @ValidateNested({ each: true })
   @Type(() => TransactionContentsDto)
   contents: TransactionContentsDto[];
-
-  // ==========================================
-  // ⛺ NUEVOS CAMPOS: MÓDULO DE RENTAS (MCU)
-  // ==========================================
 
   // 👤 CLIENTE (Opcional para ventas de mostrador, clave para rentas)
   @IsOptional()
