@@ -25,6 +25,9 @@ export class Business {
   })
   type: BusinessType;
 
+  @Column({ type: 'text', nullable: true }) // nullable porque no todos los negocios querrán una
+  description: string;
+
   @Column({ type: 'jsonb', nullable: true })
   config: Record<string, any>; // Colores, logos, configuración regional
 

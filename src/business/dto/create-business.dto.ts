@@ -13,6 +13,10 @@ export class CreateBusinessDto {
   type: BusinessType;
 
   @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
   @IsObject()
   config?: {
     primaryColor: string;
