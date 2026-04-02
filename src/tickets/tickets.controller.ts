@@ -3,7 +3,7 @@ import { TicketsService } from './tickets.service';
 import { BusinessActiveGuard } from '../auth/guards/business-active.guard';
 
 @Controller('tickets')
-@UseGuards(BusinessActiveGuard)
+// @UseGuards(BusinessActiveGuard deshabilitado porque es publico!
 export class TicketsController {
   constructor(private readonly ticketsService: TicketsService) {}
 
