@@ -112,6 +112,7 @@ export class TransactionsService {
       const deposit = isRental ? (createTransactionDto.depositAmount || 0) : 0;
 
       // 3. CREAR CABECERA DE LA TRANSACCIÓN
+      // 3. CREAR CABECERA DE LA TRANSACCIÓN
       const transaction = manager.create(Transaction, {
         businessId: businessId,
         userId: user.id,
@@ -122,10 +123,13 @@ export class TransactionsService {
         total: total,
         coupon: couponName,
         couponDiscount: couponDiscount,
+        paymentMethod: createTransactionDto.paymentMethod || PaymentMethod.CASH,
 
-        // ✨ EL PARCHE VITAL: Guardar el método de pago que manda el frontend,
-        // o usar CASH por defecto si no mandan nada.
-        paymentMethod: createTransactionDto.paymentMethod || PaymentMethod.CASH
+        // ✨ EL ARREGLO:
+        // Si el tipo es RENTAL, le ponemos OUT. Si es SALE, se queda null.
+        rentalStatus: createTransactionDto.type === TransactionType.RENTAL
+          ? RentalStatus.OUT
+          : null
       });
 
       const savedTransaction = await manager.save(transaction);
