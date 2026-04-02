@@ -1,12 +1,11 @@
-// src/coupons/coupons.service.ts
 import { Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { endOfDay, isAfter } from 'date-fns';
 import { Coupon } from './entities/coupon.entity';
 import { CreateCouponDto } from './dto/create-coupon.dto';
 import { UpdateCouponDto } from './dto/update-coupon.dto';
 import { ApplyCouponDto } from './dto/apply-coupon.dto';
+import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class CouponsService {
@@ -15,97 +14,79 @@ export class CouponsService {
     private readonly couponRepository: Repository<Coupon>,
   ) {}
 
-  async create(createCouponDto: CreateCouponDto) {
-    // Registramos el nuevo hardware de descuento
-    return await this.couponRepository.save(createCouponDto);
+  async create(createCouponDto: CreateCouponDto, user: User) {
+    const coupon = this.couponRepository.create({
+      ...createCouponDto,
+      businessId: user.businessId // 👈 Inyección automática de seguridad
+    });
+    return await this.couponRepository.save(coupon);
   }
 
-  findAll() {
-    return this.couponRepository.find();
+  async findAll(user: User) {
+    return this.couponRepository.find({
+      where: { businessId: user.businessId } // 👈 Solo sus cupones
+    });
   }
 
-  async findOne(id: number) {
-    const coupon = await this.couponRepository.findOneBy({ id });
+  async findOne(id: number, user: User) {
+    const coupon = await this.couponRepository.findOne({
+      where: { id, businessId: user.businessId }
+    });
     if (!coupon) {
-      throw new NotFoundException(`Coupon_ID #${id} not found in database`);
+      throw new NotFoundException(`El cupón #${id} no existe en tu negocio`);
     }
     return coupon;
   }
 
-  async update(id: number, updateCouponDto: UpdateCouponDto) {
-    const coupon = await this.findOne(id); // findOne ya maneja el error 404
+  async update(id: number, updateCouponDto: UpdateCouponDto, user: User) {
+    const coupon = await this.findOne(id, user);
     Object.assign(coupon, updateCouponDto);
     return await this.couponRepository.save(coupon);
   }
 
-  async remove(id: number) {
-    const coupon = await this.findOne(id);
+  async remove(id: number, user: User) {
+    const coupon = await this.findOne(id, user);
     await this.couponRepository.remove(coupon);
-    return { message: 'Coupon_Deleted_Successfully' };
+    return { message: 'Cupón eliminado exitosamente' };
   }
 
-  async applyCoupon(applyCouponDto: ApplyCouponDto) {
+  // 🛒 Endpoint de validación para el Frontend (Punto de Venta)
+  async applyCoupon(applyCouponDto: ApplyCouponDto, user: User) {
     const { coupon_name, total } = applyCouponDto;
 
-    // 1. EXISTENCIA
-    const coupon = await this.couponRepository.findOneBy({ name: coupon_name });
-    if (!coupon) {
-      throw new NotFoundException(`Coupon code "${coupon_name}" is invalid`);
+    const coupon = await this.couponRepository.findOne({
+      where: { name: coupon_name, businessId: user.businessId }
+    });
+
+    if (!coupon) throw new NotFoundException(`El cupón "${coupon_name}" no es válido.`);
+    if (!coupon.isActive) throw new UnprocessableEntityException('Este cupón está inactivo.');
+
+    if (new Date() > coupon.expirationDate) {
+      throw new UnprocessableEntityException('El cupón ha expirado.');
     }
 
-    // 2. ACTIVACIÓN MANUAL
-    if (!coupon.isActive) {
-      throw new UnprocessableEntityException('This coupon is currently inactive');
-    }
-
-    // 3. VIGENCIA (FECHA)
-    const currentDate = new Date();
-    const expirationDate = endOfDay(coupon.expirationDate);
-    if (isAfter(currentDate, expirationDate)) {
-      throw new UnprocessableEntityException('Coupon has expired');
-    }
-
-    // 4. DISPONIBILIDAD (LÍMITE DE USOS)
     if (coupon.limit > 0 && coupon.used >= coupon.limit) {
-      throw new UnprocessableEntityException('Usage limit reached for this coupon');
+      throw new UnprocessableEntityException('El cupón alcanzó su límite de usos.');
     }
 
-    // 5. COMPRA MÍNIMA (RESTRICCIÓN FINANCIERA)
-    // Validamos si el total del carrito es suficiente para despertar el cupón
     if (total < coupon.minPurchase) {
-      throw new UnprocessableEntityException(
-        `Minimum purchase of $${coupon.minPurchase} required to use this coupon`
-      );
+      throw new UnprocessableEntityException(`Se requiere una compra mínima de $${coupon.minPurchase}`);
     }
 
-    // Si pasa todas las pruebas, devolvemos el cupón para que el frontend calcule el descuento
+    // Calcular el dinero exacto a descontar para devolvérselo al frontend
+    let discountAmount = coupon.isPercentage
+      ? total * (coupon.discount / 100)
+      : Number(coupon.discount);
+
+    if (discountAmount > total) discountAmount = total;
+
     return {
-      message: 'Protocol accepted: Coupon applied',
-      coupon
-    };
-  }
-
-  async confirmCouponUsage(couponName: string) {
-    const coupon = await this.couponRepository.findOneBy({ name: couponName });
-
-    if (coupon) {
-      // 1. Incrementamos el contador de telemetría
-      coupon.used += 1;
-
-      // 2. Opcional: Si el cupón llegó a su límite exacto,
-      // podríamos desactivarlo automáticamente, aunque la lógica
-      // de applyCoupon ya lo bloquea por el conteo.
-      if (coupon.limit > 0 && coupon.used >= coupon.limit) {
-        console.log(`[VASK8_OS] Alerta: Cupón ${coupon.name} ha agotado su límite de hardware.`);
+      message: 'Cupón válido.',
+      coupon: {
+        name: coupon.name,
+        discountAmount: discountAmount,
+        newTotal: total - discountAmount
       }
-
-      // 3. Guardado final en Render DB
-      await this.couponRepository.save(coupon);
-
-      return {
-        status: 'COMMIT_SUCCESS',
-        currentUsed: coupon.used
-      };
-    }
+    };
   }
 }

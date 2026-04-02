@@ -1,34 +1,38 @@
-// src/coupons/entities/coupon.entity.ts
 import { Column, Entity, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
-@Entity()
+@Entity('coupons')
 export class Coupon {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 30, unique: true })
-  name: string; // El código que escribe el usuario (ej: VASK8_PRO)
+  // 🛡️ EL CANDADO SAAS: Este cupón le pertenece a un solo negocio
+  @Column({ name: 'business_id' })
+  businessId: string;
 
-  @Column({ type: 'integer' })
-  discount: number; // El valor del descuento
+  // Le quitamos el "unique: true" para que diferentes negocios usen el mismo código
+  @Column({ type: 'varchar', length: 30 })
+  name: string;
+
+  @Column({ type: 'decimal', precision: 12, scale: 2 })
+  discount: number;
 
   @Column({ type: 'boolean', default: true })
-  isPercentage: boolean; // ¿Es un 10% o son 10 pesos? Fundamental.
+  isPercentage: boolean;
 
   @Column({ type: 'integer', default: 0 })
-  limit: number; // Máximo de veces que se puede usar (0 = infinito)
+  limit: number;
 
   @Column({ type: 'integer', default: 0 })
-  used: number; // Contador de cuántas veces se ha canjeado
+  used: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
-  minPurchase: number; // Compra mínima necesaria para que el cupón "despierte"
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  minPurchase: number;
 
-  @Column({ type: 'date' })
+  @Column({ type: 'timestamp' }) // Cambiamos date a timestamp para más precisión
   expirationDate: Date;
 
-  @Column({ type: 'boolean', default: true })
-  isActive: boolean; // Interruptor de seguridad para apagar el cupón manualmente
+  @Column({ default: true })
+  isActive: boolean;
 
   @CreateDateColumn()
   createdAt: Date;

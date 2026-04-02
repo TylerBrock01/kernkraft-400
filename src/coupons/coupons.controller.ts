@@ -1,55 +1,58 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, ParseIntPipe } from '@nestjs/common';
 import { CouponsService } from './coupons.service';
 import { CreateCouponDto } from './dto/create-coupon.dto';
 import { UpdateCouponDto } from './dto/update-coupon.dto';
-import { IdValidationPipe } from '../common/pipes/id-validation/id-validation.pipe';
 import { ApplyCouponDto } from './dto/apply-coupon.dto';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { BusinessActiveGuard } from '../auth/guards/business-active.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/roles/roles';
+import { GetUser } from '../auth/decorators/get-user.decorator';
+import { User } from '../users/entities/user.entity';
 import { JwtAuthGuard } from '../jwt-auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
 
 @Controller('coupons')
+@UseGuards(JwtAuthGuard, RolesGuard, BusinessActiveGuard)
 export class CouponsController {
   constructor(private readonly couponsService: CouponsService) {}
 
   @Roles(Role.ADMIN)
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Post()
-  create(@Body() createCouponDto: CreateCouponDto) {
-    return this.couponsService.create(createCouponDto);
+  create(@Body() createCouponDto: CreateCouponDto, @GetUser() user: User) {
+    return this.couponsService.create(createCouponDto, user);
   }
-  @Roles(Role.ADMIN)
-  @UseGuards(JwtAuthGuard, RolesGuard)
+
+  @Roles(Role.ADMIN, Role.VENDEDOR)
   @Get()
-  findAll() {
-    return this.couponsService.findAll();
+  findAll(@GetUser() user: User) {
+    return this.couponsService.findAll(user);
+  }
+
+  @Roles(Role.ADMIN, Role.VENDEDOR)
+  @Get(':id')
+  findOne(@Param('id', ParseIntPipe) id: number, @GetUser() user: User) {
+    return this.couponsService.findOne(id, user);
   }
 
   @Roles(Role.ADMIN)
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Get(':id')
-  findOne(@Param('id', IdValidationPipe) id: string) {
-    return this.couponsService.findOne(+id);
-  }
-
-  @Roles(Role.ADMIN,Role.VENDEDOR)
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Patch(':id')
-  update(@Param('id',IdValidationPipe) id: string, @Body() updateCouponDto: UpdateCouponDto) {
-    return this.couponsService.update(+id, updateCouponDto);
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateCouponDto: UpdateCouponDto,
+    @GetUser() user: User
+  ) {
+    return this.couponsService.update(id, updateCouponDto, user);
   }
 
-  @Roles(Role.ADMIN,Role.VENDEDOR)
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
   @Delete(':id')
-  remove(@Param('id',IdValidationPipe) id: string) {
-    return this.couponsService.remove(+id);
+  remove(@Param('id', ParseIntPipe) id: number, @GetUser() user: User) {
+    return this.couponsService.remove(id, user);
   }
 
-  @Post('/apply-coupon')
-  @HttpCode(HttpStatus.OK)
-  applyCoupon(@Body() applyCouponDto: ApplyCouponDto) {
-    return this.couponsService.applyCoupon(applyCouponDto);
+  @Roles(Role.ADMIN, Role.VENDEDOR)
+  @Post('apply')
+  applyCoupon(@Body() applyCouponDto: ApplyCouponDto, @GetUser() user: User) {
+    return this.couponsService.applyCoupon(applyCouponDto, user);
   }
 }
