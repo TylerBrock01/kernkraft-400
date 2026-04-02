@@ -223,6 +223,39 @@ export class AnalyticsService {
       }))
     };
 
+    // ... aquí termina tu código de customerInsights ...
+
+    // --- 💸 NUEVO BLOQUE: SALUD DEL FLUJO DE EFECTIVO ---
+    // 9. Calculamos cuánto dinero en caja NO es del negocio (Depósitos retenidos)
+    const retainedCapitalStats = await this.transactionRepository
+      .createQueryBuilder('t')
+      .select('SUM(t.depositAmount)', 'retainedAmount')
+      .where('t.businessId = :businessId', { businessId })
+      .andWhere('t.rentalStatus = :status', { status: 'OUT' }) // 👈 Solo las rentas activas
+      .getRawOne();
+
+    const retainedCapital = parseFloat(retainedCapitalStats.retainedAmount || 0);
+
+    // El "Capital Libre" es la suma histórica de ganancias puras (que ya calculamos arriba en totalAllTime)
+    // La "Liquidez Actual" es todo el efectivo que físicamente debería existir en las cuentas/cajas del negocio
+    const cashFlowHealth = {
+      retainedCapital: retainedCapital, // Dinero intocable (se debe regresar)
+      freeCapitalAllTime: totalAllTime, // Dinero 100% del negocio (ganancias puras)
+      physicalCashInBusiness: retainedCapital + totalAllTime
+    };
+
+    // 🚀 RETORNO FINAL ÉPICO DEL PANEL
+    // return {
+    //   businessId,
+    //   kpis: {
+    //     growthMoM: {
+    //       /* ... */
+    //     },
+    //     assetPerformance: assetPerformance,
+    //     customerInsights: customerInsights,
+    //     // 👇 El broche de oro financiero
+    //     cashFlowHealth: cashFlowHealth
+    //   }
     const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
     // 🚀 RETORNO FINAL DEL PANEL
@@ -240,7 +273,8 @@ export class AnalyticsService {
           }
         },
         assetPerformance: assetPerformance, // 👈 Aquí inyectamos el ROI
-        customerInsights: customerInsights
+        customerInsights: customerInsights,
+        cashFlowHealth: cashFlowHealth
       }
     };
   }
