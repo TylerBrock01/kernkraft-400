@@ -67,11 +67,12 @@ export class CashRegistersService {
       throw new BadRequestException('No tienes ninguna caja abierta para cerrar.');
     }
 
-    // 2. CALCULAR EFECTIVO REAL (SOLO BILLETES)
+    // 2. CALCULAR EFECTIVO REAL (BILLETES + DEPÓSITOS)
     const salesResult = await this.transactionRepository
       .createQueryBuilder('t')
-      // ✨ MAGIA: Solo sumamos si el pago fue en EFECTIVO (CASH)
-      .select(`SUM(CASE WHEN t.paymentMethod = 'CASH' THEN (t.total + t.depositAmount) ELSE 0 END)`, 'totalCashIn')
+      // ✨ MAGIA: Sumamos el 'total' SOLO si es CASH.
+      // Pero el 'depositAmount' se suma SIEMPRE, porque la Regla de Oro dice que es físico.
+      .select(`SUM(CASE WHEN t.paymentMethod = 'CASH' THEN t.total ELSE 0 END) + COALESCE(SUM(t.depositAmount), 0)`, 'totalCashIn')
       .where('t.userId = :userId', { userId: user.id })
       .andWhere('t.businessId = :businessId', { businessId: user.businessId })
       .andWhere('t.status = :status', { status: 'COMPLETED' })

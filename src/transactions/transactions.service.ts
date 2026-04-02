@@ -328,14 +328,20 @@ export class TransactionsService {
 
       const refundAmount = transaction.depositAmount - penalty;
 
-      // 💸 AJUSTE CONTABLE REAL:
-      // El total ahora debe reflejar lo que el negocio se quedó al final:
-      // Renta Original + Penalidad.
+      // 💸 MAGIA CONTABLE: La ganancia real del negocio aumenta.
       transaction.total = Number(transaction.total) + penalty;
 
-      // El depósito ya no está en la caja (o se devolvió o se volvió penalidad)
-      // Para que el QueryBuilder no lo sume otra vez, lo "vaciamos" porque ya se procesó.
-      transaction.depositAmount = 0;
+      // ✨ LA REGLA DE ORO (Depósitos siempre en efectivo)
+      if (transaction.paymentMethod === PaymentMethod.CASH) {
+        // Si la renta fue en efectivo, la penalidad ya está en el 'total' físico.
+        // Ya no retenemos el depósito porque se fusionó.
+        transaction.depositAmount = 0;
+      } else {
+        // Si la renta fue por Transferencia, el 'total' es dinero digital.
+        // Mantenemos la penalidad en 'depositAmount' para que el sistema
+        // sepa que esos $250 ESTÁN FÍSICAMENTE en el cajón.
+        transaction.depositAmount = penalty;
+      }
 
       // 3. RECUPERACIÓN DE INVENTARIO Y MERMAS (CORREGIDO)
       const contents = await manager.find(TransactionContent, {
