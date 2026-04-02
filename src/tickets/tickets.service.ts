@@ -14,10 +14,11 @@ export class TicketsService {
   ) {}
 
   async findOneByUuid(uuid: string) {
-    // 1. Buscamos la transacción
+    // 1. Buscamos la transacción con todas sus relaciones clave
     const transaction = await this.transactionRepository.findOne({
       where: { uuid },
-      relations: ['contents', 'contents.product'],
+      // ✨ NUEVO: Agregamos al usuario (cajero) y al cliente a la consulta
+      relations: ['contents', 'contents.product', 'user', 'customer'],
     });
 
     if (!transaction) {
@@ -34,7 +35,13 @@ export class TicketsService {
       throw new ForbiddenException('Este recibo no está disponible temporalmente. El comercio asociado se encuentra inactivo.');
     }
 
-    // 4. Formateamos el "Paquete de Datos"
+    // 4. Matemáticas Claras (Calculamos desde cero para evitar errores de doble descuento)
+    const subtotalItems = transaction.contents.reduce((acc, item) => acc + (Number(item.price) * item.quantity), 0);
+    const discount = Number(transaction.couponDiscount || 0);
+    const deposit = Number(transaction.depositAmount || 0);
+    const grandTotal = (subtotalItems - discount) + deposit;
+
+    // 5. Formateamos el "Paquete de Datos"
     return {
       header: {
         businessName: business?.name || 'Comercio MCU',
@@ -44,21 +51,30 @@ export class TicketsService {
         date: transaction.transactionDate,
         transactionId: transaction.id,
         status: transaction.status,
+        attendedBy: transaction.user?.email || 'Cajero', // ✨ Mostramos quién cobró
       },
+      // ✨ NUEVO: Datos del cliente para contratos de renta
+      customer: transaction.customer ? {
+        name: transaction.customer.name,
+        phone: transaction.customer.phone,
+        // email: transaction.customer.email || null
+      } : null,
       details: {
         type: transaction.type,
+        rentalStatus: transaction.rentalStatus, // ✨ Si está 'OUT' o ya fue 'RETURNED'
         items: transaction.contents.map(item => ({
           name: item.product.name,
           quantity: item.quantity,
-          unitPrice: item.price,
+          unitPrice: Number(item.price),
           subtotal: Number(item.price) * item.quantity,
         })),
       },
       financials: {
-        subtotal: transaction.total,
-        discount: transaction.couponDiscount,
-        deposit: transaction.depositAmount,
-        totalPaid: Number(transaction.total) + Number(transaction.depositAmount) - Number(transaction.couponDiscount),
+        subtotal: subtotalItems,
+        discount: discount,
+        deposit: deposit,
+        grandTotal: grandTotal,
+        paymentMethod: transaction.paymentMethod, // ✨ Transparencia financiera para el cliente
         returnDate: transaction.returnDate,
       },
       footer: {
