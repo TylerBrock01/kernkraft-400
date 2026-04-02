@@ -8,10 +8,11 @@ import { CouponsModule } from '../coupons/coupons.module';
 import { AuditLog } from '../audit-logs/entities/audit-log.entity';
 import { BusinessModule } from '../business/business.module';
 import { CashRegister } from '../cash-registers/entities/cash-register.entity';
+import { Coupon } from '../coupons/entities/coupon.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Transaction,TransactionContent,Product,AuditLog,CashRegister]),BusinessModule,
+    TypeOrmModule.forFeature([Transaction,TransactionContent,Product,AuditLog,CashRegister,Coupon]),BusinessModule,
     CouponsModule
   ],
   controllers: [TransactionsController],

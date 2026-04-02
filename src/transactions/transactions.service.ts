@@ -14,6 +14,7 @@ import { ReturnRentalDto } from './dto/return-rental.dto';
 import { AdjustmentReason, StockAdjustment } from '../stock-adjustments/entities/stock-adjustment.entity';
 import { RefundSaleDto } from './dto/refund-sale.dto';
 import { CashRegister, RegisterStatus } from '../cash-registers/entities/cash-register.entity';
+import { Coupon } from '../coupons/entities/coupon.entity';
 
 @Injectable()
 export class TransactionsService {
@@ -70,10 +71,42 @@ export class TransactionsService {
       // 2. LÓGICA DE CUPONES
       let couponName = null;
       let couponDiscount = 0;
+
       if (createTransactionDto.coupon) {
-        // Tu lógica de validación de cupones va aquí
-        // total -= couponDiscount;
-      }
+        // Buscamos el cupón dentro de esta misma transacción de base de datos
+        const coupon = await manager.findOne(Coupon, {
+          where: {
+            name: createTransactionDto.coupon,
+            businessId: businessId
+          }
+        });
+
+        // 🛡️ Batería de validaciones financieras
+        if (!coupon) throw new BadRequestException(`El cupón "${createTransactionDto.coupon}" no existe en este negocio.`);
+        if (!coupon.isActive) throw new BadRequestException('Este cupón ha sido desactivado manualmente.');
+        if (new Date() > coupon.expirationDate) throw new BadRequestException('El cupón ha expirado.');
+        if (coupon.limit > 0 && coupon.used >= coupon.limit) throw new BadRequestException('El cupón alcanzó su límite de usos permitidos.');
+        if (total < coupon.minPurchase) throw new BadRequestException(`Este cupón requiere una compra mínima de $${coupon.minPurchase}.`);
+
+        // 🧮 Matemáticas del descuento
+        if (coupon.isPercentage) {
+          couponDiscount = total * (Number(coupon.discount) / 100);
+        } else {
+          couponDiscount = Number(coupon.discount);
+        }
+
+        // Tope de seguridad: No regalar dinero si el descuento supera el total
+        if (couponDiscount > total) {
+          couponDiscount = total;
+        }
+
+        // 📉 Ajustamos el dinero a cobrar
+        total -= couponDiscount;
+        couponName = coupon.name;
+
+        // 🔐 INCREMENTO SEGURO DEL USO (Manejando concurrencia)
+        await manager.increment(Coupon, { id: coupon.id }, 'used', 1);
+        }
 
       // 3. CREAR CABECERA (Inyección del ADN Híbrido)
       const deposit = isRental ? (createTransactionDto.depositAmount || 0) : 0;
