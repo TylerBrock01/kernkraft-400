@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transaction } from '../transactions/entities/transaction.entity';
@@ -14,30 +14,33 @@ export class TicketsService {
   ) {}
 
   async findOneByUuid(uuid: string) {
-    // 🔍 Buscamos la transacción con sus relaciones (productos)
+    // 1. Buscamos la transacción
     const transaction = await this.transactionRepository.findOne({
       where: { uuid },
-      relations: ['contents', 'contents.product'], // Traemos el detalle y el nombre del producto
+      relations: ['contents', 'contents.product'],
     });
 
     if (!transaction) {
       throw new NotFoundException('El ticket solicitado no existe o ha caducado.');
     }
 
-    // 🏢 Buscamos la info del negocio para el encabezado del ticket
+    // 2. Buscamos el negocio dueño de esta transacción
     const business = await this.businessRepository.findOne({
       where: { id: transaction.businessId },
     });
 
-    // 📦 Formateamos el "Paquete de Datos" para el Frontend
+    // 3. LA REGLA SAAS: Validar suscripción activa
+    if (business && !business.isActive) {
+      throw new ForbiddenException('Este recibo no está disponible temporalmente. El comercio asociado se encuentra inactivo.');
+    }
+
+    // 4. Formateamos el "Paquete de Datos"
     return {
       header: {
         businessName: business?.name || 'Comercio MCU',
-        // 🧠 MAGIA JSONB: Extraemos los datos de contacto desde la configuración
         email: business?.config?.email || null,
         phone: business?.config?.phone || null,
         address: business?.config?.address || null,
-        // -----------------------------------------------------------------
         date: transaction.transactionDate,
         transactionId: transaction.id,
         status: transaction.status,
@@ -59,10 +62,9 @@ export class TicketsService {
         returnDate: transaction.returnDate,
       },
       footer: {
-        // También podemos dejar que cada negocio personalice su mensaje final en el config
         message: business?.config?.ticketMessage || '¡Gracias por su preferencia!',
         uuid: transaction.uuid,
       },
     };
-  };
+  }
 }
