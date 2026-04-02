@@ -63,11 +63,10 @@ export class CashRegistersService {
       throw new BadRequestException('No tienes ninguna caja abierta para cerrar.');
     }
 
-    // 2. CALCULAR EFECTIVO ENTRANTE DURANTE EL TURNO (QueryBuilder Corregido)
+    // 2. CALCULAR EFECTIVO REAL (QueryBuilder)
     const salesResult = await this.transactionRepository
       .createQueryBuilder('t')
-      // Sumamos la ganancia + el depósito retenido - el descuento del cupón (si es nulo, lo tomamos como 0)
-      .select('SUM(t.total + t.depositAmount - COALESCE(t.couponDiscount, 0))', 'totalCashIn')
+      .select('SUM(t.total + t.depositAmount)', 'totalCashIn') // Eliminamos la resta manual del cupón porque 'total' ya viene neto
       .where('t.userId = :userId', { userId: user.id })
       .andWhere('t.businessId = :businessId', { businessId: user.businessId })
       .andWhere('t.status = :status', { status: 'COMPLETED' })

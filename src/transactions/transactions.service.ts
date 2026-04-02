@@ -322,12 +322,15 @@ export class TransactionsService {
 
       const refundAmount = transaction.depositAmount - penalty;
 
-      // 💸 MAGIA CONTABLE: Si hay penalidad, se suma a la ganancia real del negocio.
-      if (penalty > 0) {
-        transaction.total = Number(transaction.total) + penalty;
-      }
+      // 💸 AJUSTE CONTABLE REAL:
+      // El total ahora debe reflejar lo que el negocio se quedó al final:
+      // Renta Original + Penalidad.
+      transaction.total = Number(transaction.total) + penalty;
 
-      // 3. RECUPERACIÓN DE INVENTARIO (La Logística)
+      // El depósito ya no está en la caja (o se devolvió o se volvió penalidad)
+      // Para que el QueryBuilder no lo sume otra vez, lo "vaciamos" porque ya se procesó.
+      transaction.depositAmount = 0;
+
       // 3. RECUPERACIÓN DE INVENTARIO Y MERMAS (CORREGIDO)
       const contents = await manager.find(TransactionContent, {
         where: { transactionId: transaction.id }
@@ -368,8 +371,6 @@ export class TransactionsService {
       }
       // 4. SELLAR EL CONTRATO
       transaction.rentalStatus = RentalStatus.RETURNED;
-      // Opcional: Si tienes un campo 'notes' en Transaction, podrías guardar el penaltyReason ahí.
-
       await manager.save(transaction);
 
       // 5. REPORTE FINANCIERO AL CAJERO
