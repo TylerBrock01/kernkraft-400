@@ -13,6 +13,7 @@ import { AuditLog } from '../audit-logs/entities/audit-log.entity';
 import { ReturnRentalDto } from './dto/return-rental.dto';
 import { AdjustmentReason, StockAdjustment } from '../stock-adjustments/entities/stock-adjustment.entity';
 import { RefundSaleDto } from './dto/refund-sale.dto';
+import { CashRegister, RegisterStatus } from '../cash-registers/entities/cash-register.entity';
 
 @Injectable()
 export class TransactionsService {
@@ -21,13 +22,27 @@ export class TransactionsService {
     @InjectRepository(Transaction) private readonly transactionRepository: Repository<Transaction>,
     @InjectRepository(TransactionContent) private readonly transactionContentRepository: Repository<TransactionContent>,
     @InjectRepository(Product) private readonly productRepository: Repository<Product> ,
-    private readonly couponService: CouponsService
+    @InjectRepository(CashRegister)
+    private readonly cashRegisterRepository: Repository<CashRegister>,
+
   ) {}
   async create(createTransactionDto: CreateTransactionDto, user: User, businessId: string) {
     if (!user?.id) {
       throw new BadRequestException('Error crítico: El vendedor no está identificado en el sistema.');
     }
+    const openShift = await this.cashRegisterRepository.findOne({
+      where: {
+        userId: user.id,
+        businessId: businessId,
+        status: RegisterStatus.OPEN,
+      },
+    });
 
+    if (!openShift) {
+      throw new BadRequestException(
+        'Operación denegada: Debes abrir tu turno de caja (Cash Register) antes de procesar ventas o rentas.'
+      );
+    }
     // ⛺ VALIDACIÓN PREVIA DE RENTA
     const isRental = createTransactionDto.type === TransactionType.RENTAL;
     if (isRental && !createTransactionDto.returnDate) {

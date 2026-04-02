@@ -7,10 +7,11 @@ import { Product } from '../products/entities/product.entity';
 import { CouponsModule } from '../coupons/coupons.module';
 import { AuditLog } from '../audit-logs/entities/audit-log.entity';
 import { BusinessModule } from '../business/business.module';
+import { CashRegister } from '../cash-registers/entities/cash-register.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Transaction,TransactionContent,Product,AuditLog]),BusinessModule,
+    TypeOrmModule.forFeature([Transaction,TransactionContent,Product,AuditLog,CashRegister]),BusinessModule,
     CouponsModule
   ],
   controllers: [TransactionsController],
