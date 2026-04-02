@@ -6,6 +6,7 @@ import { OpenRegisterDto } from './dto/open-register.dto';
 import { User } from '../users/entities/user.entity';
 import { Transaction } from '../transactions/entities/transaction.entity';
 import { CloseRegisterDto } from './dto/close-register.dto';
+import { CashMovement } from '../cash-movements/entities/cash-movement.entity';
 
 @Injectable()
 export class CashRegistersService {
@@ -14,6 +15,9 @@ export class CashRegistersService {
     private readonly cashRegisterRepository: Repository<CashRegister>,
     @InjectRepository(Transaction)
     private readonly transactionRepository: Repository<Transaction>,
+    @InjectRepository(CashMovement)
+    private readonly cashMovementRepository: Repository<CashMovement>,
+
   ) {}
 
   async openRegister(user: User, openDto: OpenRegisterDto) {
@@ -73,15 +77,34 @@ export class CashRegistersService {
       .andWhere('t.transactionDate >= :openedAt', { openedAt: register.openedAt })
       .getRawOne();
 
+    // ... tu código actual del salesResult (totalCashIn) ...
     const totalCashIn = parseFloat(salesResult.totalCashIn || 0);
 
-    // 3. MATEMÁTICAS DEL ARQUEO
+    // ✨ 3. CALCULAR MOVIMIENTOS DE CAJA (GASTOS E INYECCIONES)
+    const movementsResult = await this.cashMovementRepository
+      .createQueryBuilder('cm')
+      .select(`
+        SUM(CASE WHEN cm.type = 'IN' THEN cm.amount ELSE 0 END) as total_in,
+        SUM(CASE WHEN cm.type = 'OUT' THEN cm.amount ELSE 0 END) as total_out
+      `)
+      .where('cm.userId = :userId', { userId: user.id })
+      .andWhere('cm.businessId = :businessId', { businessId: user.businessId })
+      .andWhere('cm.date >= :openedAt', { openedAt: register.openedAt })
+      .getRawOne();
+
+    const movementsIn = parseFloat(movementsResult?.total_in || 0);
+    const movementsOut = parseFloat(movementsResult?.total_out || 0);
+
+    // 🧮 4. MATEMÁTICAS DEL ARQUEO (LA FÓRMULA MAESTRA)
     const openingBalance = parseFloat(register.openingBalance.toString());
-    const expectedBalance = openingBalance + totalCashIn; // 👈 Ahora sí cuadra con los billetes físicos
+
+    // Lo que el sistema exige: Fondo + Ventas + Entradas Extras - Gastos
+    const expectedBalance = openingBalance + totalCashIn + movementsIn - movementsOut;
+
     const actualBalance = closeDto.actualBalance;
     const difference = actualBalance - expectedBalance;
 
-    // 4. SELLADO DE CAJA
+    // 5. SELLADO DE CAJA
     register.expectedBalance = expectedBalance;
     register.actualBalance = actualBalance;
     register.difference = difference;
@@ -91,7 +114,7 @@ export class CashRegistersService {
 
     await this.cashRegisterRepository.save(register);
 
-    // 5. DIAGNÓSTICO PARA EL FRONTEND
+    // 6. DIAGNÓSTICO PARA EL FRONTEND
     let statusMsg = 'CUADRADO PERFECTO 🎯';
     if (difference > 0) statusMsg = 'SOBRANTE DE CAJA 🤑';
     if (difference < 0) statusMsg = 'FALTANTE DE CAJA 🚨';
@@ -101,7 +124,11 @@ export class CashRegistersService {
       diagnosis: statusMsg,
       summary: {
         openingBalance,
-        totalCashIn,
+        salesRevenue: totalCashIn,
+        extraMovements: {
+          cashIn: movementsIn,
+          cashOut: movementsOut
+        },
         expectedBalance,
         actualBalance,
         difference,
