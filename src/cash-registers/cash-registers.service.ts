@@ -63,22 +63,22 @@ export class CashRegistersService {
       throw new BadRequestException('No tienes ninguna caja abierta para cerrar.');
     }
 
-    // 2. CALCULAR VENTAS DURANTE EL TURNO (QueryBuilder)
+    // 2. CALCULAR EFECTIVO ENTRANTE DURANTE EL TURNO (QueryBuilder Corregido)
     const salesResult = await this.transactionRepository
       .createQueryBuilder('t')
-      .select('SUM(t.total)', 'totalSales')
+      // Sumamos la ganancia + el depósito retenido - el descuento del cupón (si es nulo, lo tomamos como 0)
+      .select('SUM(t.total + t.depositAmount - COALESCE(t.couponDiscount, 0))', 'totalCashIn')
       .where('t.userId = :userId', { userId: user.id })
       .andWhere('t.businessId = :businessId', { businessId: user.businessId })
       .andWhere('t.status = :status', { status: 'COMPLETED' })
       .andWhere('t.transactionDate >= :openedAt', { openedAt: register.openedAt })
       .getRawOne();
 
-    const totalSales = parseFloat(salesResult.totalSales || 0);
+    const totalCashIn = parseFloat(salesResult.totalCashIn || 0);
 
     // 3. MATEMÁTICAS DEL ARQUEO
-    // openingBalance viene de DB como string (por ser decimal), lo pasamos a float
     const openingBalance = parseFloat(register.openingBalance.toString());
-    const expectedBalance = openingBalance + totalSales;
+    const expectedBalance = openingBalance + totalCashIn; // 👈 Ahora sí cuadra con los billetes físicos
     const actualBalance = closeDto.actualBalance;
     const difference = actualBalance - expectedBalance;
 
@@ -102,7 +102,7 @@ export class CashRegistersService {
       diagnosis: statusMsg,
       summary: {
         openingBalance,
-        totalSales,
+        totalCashIn,
         expectedBalance,
         actualBalance,
         difference,
