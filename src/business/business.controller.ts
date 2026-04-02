@@ -6,6 +6,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/roles/roles';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { UpdateBusinessDto } from './dto/update-business.dto';
+import { UpdateSubscriptionDto } from './dto/update-subscription.dto';
 
 @Controller('business')
 export class BusinessController {
@@ -55,5 +56,14 @@ export class BusinessController {
       throw new BadRequestException('El campo isActive debe ser un valor booleano');
     }
     return this.businessService.toggleStatus(id, isActive);
+  }
+  @Patch(':id/subscription')
+  @Roles(Role.SUPER_ADMIN)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  updateSubscription(
+    @Param('id') id: string, // Recuerda que el Business ID es un UUID string
+    @Body() updateDto: UpdateSubscriptionDto
+  ) {
+    return this.businessService.updateSubscription(id, updateDto);
   }
 }

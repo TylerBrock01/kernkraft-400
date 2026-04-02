@@ -39,4 +39,7 @@ export class Business {
 
   @OneToMany(() => User, (user) => user.business)
   users: User[];
+
+  @Column({ type: 'timestamp', nullable: true })
+  licenseValidUntil: Date;
 }

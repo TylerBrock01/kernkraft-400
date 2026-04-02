@@ -4,7 +4,7 @@ import {
   CanActivate,
   ExecutionContext,
   ForbiddenException,
-  NotFoundException, BadRequestException
+  BadRequestException
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -17,37 +17,46 @@ export class BusinessActiveGuard implements CanActivate {
     @InjectRepository(Business)
     private readonly businessRepository: Repository<Business>,
   ) {}
-  // src/auth/guards/business-active.guard.ts
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
 
-    // ESTRATEGIA DE EXTRACCIÓN:
-    // 1. Intentamos sacar el ID del Token (si el usuario está logueado)
-    // 2. Si no hay token, lo buscamos en los Query Params (?businessId=...)
+    // ESTRATEGIA DE EXTRACCIÓN
     const businessId = request.user?.businessId || request.query.businessId;
 
     if (!businessId) {
       throw new BadRequestException('Se requiere un Business ID para acceder a este recurso.');
     }
 
-    // BYPASS: El SuperAdmin siempre pasa, incluso si el negocio está "apagado"
+    // BYPASS: El SuperAdmin de la agencia siempre pasa
     if (request.user?.role === Role.SUPER_ADMIN) return true;
 
+    // 🔍 Extraemos también la fecha de licencia
     const business = await this.businessRepository.findOne({
       where: { id: businessId },
-      select: ['isActive', 'name']
+      select: ['isActive', 'name', 'licenseValidUntil']
     });
 
-    if (!business || !business.isActive) {
-      throw new ForbiddenException(
-        business
-          ? `El negocio "${business.name}" está temporalmente suspendido.`
-          : 'Negocio no encontrado.'
-      );
+    if (!business) {
+      throw new ForbiddenException('Negocio no encontrado.');
+    }
+
+    // 🛑 REGLA 1: Apagado manual (Baneo o cancelación)
+    if (!business.isActive) {
+      throw new ForbiddenException(`El negocio "${business.name}" está temporalmente suspendido.`);
+    }
+
+    // ⏳ REGLA 2: Licencia expirada
+    // Si tiene fecha límite, verificamos que el día de hoy sea MENOR a esa fecha
+    if (business.licenseValidUntil) {
+      const now = new Date();
+      if (now > business.licenseValidUntil) {
+        throw new ForbiddenException(
+          `La licencia del negocio "${business.name}" expiró el ${business.licenseValidUntil.toLocaleDateString()}. Por favor, renueva la suscripción.`
+        );
+      }
     }
 
     return true;
   }
-
 }

@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Business } from './entities/business.entity';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { UpdateBusinessDto } from './dto/update-business.dto';
+import { UpdateSubscriptionDto } from './dto/update-subscription.dto';
 
 @Injectable()
 export class BusinessService {
@@ -66,6 +67,35 @@ export class BusinessService {
         name: updatedBusiness.name,
         isActive: updatedBusiness.isActive
       }
+    };
+  }
+  // Importa NotFoundException de '@nestjs/common' si no lo tienes
+  async updateSubscription(businessId: string, updateDto: UpdateSubscriptionDto) {
+    const business = await this.businessRepository.findOne({
+      where: { id: businessId }
+    });
+
+    if (!business) {
+      throw new NotFoundException(`El negocio con ID ${businessId} no existe.`);
+    }
+
+    if (updateDto.isActive !== undefined) {
+      business.isActive = updateDto.isActive;
+    }
+
+    if (updateDto.licenseValidUntil !== undefined) {
+      // Convertimos el string ISO a un objeto Date real para TypeORM
+      business.licenseValidUntil = new Date(updateDto.licenseValidUntil);
+    }
+
+    await this.businessRepository.save(business);
+
+    return {
+      message: 'Suscripción de la agencia actualizada correctamente.',
+      businessId: business.id,
+      businessName: business.name,
+      isActive: business.isActive,
+      licenseValidUntil: business.licenseValidUntil
     };
   }
 }
