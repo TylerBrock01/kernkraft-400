@@ -244,18 +244,6 @@ export class AnalyticsService {
       physicalCashInBusiness: retainedCapital + totalAllTime
     };
 
-    // 🚀 RETORNO FINAL ÉPICO DEL PANEL
-    // return {
-    //   businessId,
-    //   kpis: {
-    //     growthMoM: {
-    //       /* ... */
-    //     },
-    //     assetPerformance: assetPerformance,
-    //     customerInsights: customerInsights,
-    //     // 👇 El broche de oro financiero
-    //     cashFlowHealth: cashFlowHealth
-    //   }
     const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
     // 🚀 RETORNO FINAL DEL PANEL
