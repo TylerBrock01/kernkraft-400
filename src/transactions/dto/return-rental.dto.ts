@@ -1,4 +1,14 @@
-import { IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsNumber, IsOptional, IsString, Min, ValidateNested, IsArray, IsInt } from 'class-validator';
+import { Type } from 'class-transformer';
+
+class DamagedItemDto {
+  @IsInt()
+  productId: number;
+
+  @IsInt()
+  @Min(1)
+  quantity: number;
+}
 
 export class ReturnRentalDto {
   @IsOptional()
@@ -9,4 +19,11 @@ export class ReturnRentalDto {
   @IsOptional()
   @IsString()
   penaltyReason?: string; // Ej: "Trajo la carpa rota y llena de lodo"
+
+  // 🚨 NUEVO: Lista exacta de qué se rompió y cuánto
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DamagedItemDto)
+  damagedItems?: DamagedItemDto[];
 }

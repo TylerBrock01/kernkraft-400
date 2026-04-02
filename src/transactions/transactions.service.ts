@@ -11,6 +11,7 @@ import { User } from '../users/entities/user.entity';
 import { Role } from '../auth/roles/roles';
 import { AuditLog } from '../audit-logs/entities/audit-log.entity';
 import { ReturnRentalDto } from './dto/return-rental.dto';
+import { AdjustmentReason, StockAdjustment } from '../stock-adjustments/entities/stock-adjustment.entity';
 
 @Injectable()
 export class TransactionsService {
@@ -277,16 +278,44 @@ export class TransactionsService {
       }
 
       // 3. RECUPERACIÓN DE INVENTARIO (La Logística)
-      // Buscamos todos los renglones (productos) que se llevó en este ticket
+      // 3. RECUPERACIÓN DE INVENTARIO Y MERMAS (CORREGIDO)
       const contents = await manager.find(TransactionContent, {
         where: { transactionId: transaction.id }
       });
 
-      for (const item of contents) {
-        // 📦 Restauramos el stock de la bodega
-        await manager.increment(Product, { id: item.productId }, "stock", item.quantity);
+      // Mapeamos los daños enviados en el DTO para buscarlos fácil
+      const damagesMap = new Map<number, number>();
+      if (returnDto.damagedItems) {
+        returnDto.damagedItems.forEach(item => damagesMap.set(item.productId, item.quantity));
       }
 
+      for (const item of contents) {
+        // Revisamos si este producto en particular tuvo mermas
+        const damagedQty = damagesMap.get(item.productId) || 0;
+
+        // Aseguramos que no reporten más daños de los que rentaron
+        const validDamagedQty = Math.min(damagedQty, item.quantity);
+        const intactQuantity = item.quantity - validDamagedQty;
+
+        if (intactQuantity > 0) {
+          // 📦 Restauramos el stock sano a la bodega
+          await manager.increment(Product, { id: item.productId }, "stock", intactQuantity);
+        }
+
+        // 🚨 Registramos la merma de este producto específico
+        if (validDamagedQty > 0) {
+          // Importante: Asegúrate de importar StockAdjustment y AdjustmentReason arriba
+          const adjustment = manager.create(StockAdjustment, {
+            businessId: businessId,
+            productId: item.productId,
+            quantity: validDamagedQty,
+            reason: AdjustmentReason.DAMAGE,
+            notes: `Merma automática (Contrato #${transaction.id}). Razón: ${returnDto.penaltyReason || 'Daño en renta'}`,
+            createdBy: user.id, // Ojo: asegúrate de que user.id sea number como vimos hace rato
+          });
+          await manager.save(adjustment);
+        }
+      }
       // 4. SELLAR EL CONTRATO
       transaction.rentalStatus = RentalStatus.RETURNED;
       // Opcional: Si tienes un campo 'notes' en Transaction, podrías guardar el penaltyReason ahí.
