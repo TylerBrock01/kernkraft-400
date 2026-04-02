@@ -3,7 +3,7 @@ import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { PaymentMethod, RentalStatus, Transaction, TransactionContent, TransactionStatus, TransactionType } from './entities/transaction.entity';
-import { Between, FindManyOptions, FindOptionsWhere, Repository } from 'typeorm';
+import { Between, FindManyOptions, FindOptionsWhere, In, Repository } from 'typeorm';
 import { Product } from '../products/entities/product.entity';
 import { endOfDay, isValid, parseISO, startOfDay } from 'date-fns';
 import { CouponsService } from '../coupons/coupons.service';
@@ -32,6 +32,30 @@ export class TransactionsService {
     if (!user?.id) {
       throw new BadRequestException('Error crítico: El vendedor no está identificado en el sistema.');
     }
+    // ✨ 1. ESCÁNER ANTI-OVERBOOKING (Validación de Stock)
+    // Extraemos todos los IDs de los productos que el cliente quiere llevarse
+    const productIds = createTransactionDto.contents.map(item => item.productId);
+
+    // Buscamos esos productos en la base de datos de un solo golpe
+    const dbProducts = await this.productRepository.find({
+      where: { id: In(productIds), businessId: businessId }
+    });
+
+    // Revisamos uno por uno si nos alcanza el inventario
+    for (const item of createTransactionDto.contents) {
+      const productInDb = dbProducts.find(p => p.id === item.productId);
+
+      if (!productInDb) {
+        throw new NotFoundException(`El producto con ID ${item.productId} no existe en este negocio.`);
+      }
+
+      if (productInDb.stock < item.quantity) {
+        throw new BadRequestException(
+          `¡Stock Insuficiente! Solo tienes ${productInDb.stock} unidades de "${productInDb.name}" disponibles, pero intentas procesar ${item.quantity}.`
+        );
+      }
+    }
+
     const openShift = await this.cashRegisterRepository.findOne({
       where: {
         userId: user.id,
