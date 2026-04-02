@@ -25,4 +25,11 @@ export class CashMovementsController {
   getMyShiftMovements(@GetUser() user: User) {
     return this.cashMovementsService.getMyShiftMovements(user);
   }
+
+  // 🛡️ Solo el Administrador puede ver el historial completo de la empresa
+  @Roles(Role.ADMIN)
+  @Get()
+  findAll(@GetUser() user: User) {
+    return this.cashMovementsService.findAll(user);
+  }
 }

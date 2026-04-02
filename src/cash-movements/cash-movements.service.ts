@@ -62,4 +62,30 @@ export class CashMovementsService {
       .orderBy('cm.date', 'DESC')
       .getMany();
   }
+  // ... debajo de getMyShiftMovements ...
+
+  // 🕵️‍♂️ Endpoint exclusivo para el dueño (Auditoría)
+  async findAll(user: User) {
+    return await this.cashMovementRepository.find({
+      where: { businessId: user.businessId },
+      relations: ['user'], // Traemos los datos del empleado que hizo el movimiento
+      select: {
+        id: true,
+        amount: true,
+        type: true,
+        reason: true,
+        date: true,
+        // Solo enviamos información segura del usuario, nada de passwords
+        user: {
+          id: true,
+          email: true,
+          // Si tienes campo de nombre en tu User entity, agrégalo aquí, ej:
+          // fullName: true
+        }
+      },
+      order: {
+        date: 'DESC' // Los más recientes primero
+      }
+    });
+  }
 }
