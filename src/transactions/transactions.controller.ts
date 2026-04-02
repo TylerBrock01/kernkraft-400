@@ -12,6 +12,7 @@ import { User } from '../users/entities/user.entity';
 import { CancelTransactionDto } from './dto/cancel-transaction';
 import { ReturnRentalDto } from './dto/return-rental.dto';
 import { BusinessActiveGuard } from '../auth/guards/business-active.guard';
+import { RefundSaleDto } from './dto/refund-sale.dto';
 
 @Controller('transactions')
 @UseGuards(JwtAuthGuard, RolesGuard,BusinessActiveGuard)
@@ -85,5 +86,14 @@ export class TransactionsController {
     @GetUser() user: User
   ) {
     return this.transactionsService.returnRental(id, returnDto, user, user.businessId);
+  }
+
+  @Post(':id/refund')
+  refundSale(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() refundDto: RefundSaleDto,
+    @GetUser() user: User
+  ) {
+    return this.transactionsService.refundSale(id, refundDto, user, user.businessId);
   }
 }

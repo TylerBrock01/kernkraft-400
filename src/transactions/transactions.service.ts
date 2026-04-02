@@ -12,6 +12,7 @@ import { Role } from '../auth/roles/roles';
 import { AuditLog } from '../audit-logs/entities/audit-log.entity';
 import { ReturnRentalDto } from './dto/return-rental.dto';
 import { AdjustmentReason, StockAdjustment } from '../stock-adjustments/entities/stock-adjustment.entity';
+import { RefundSaleDto } from './dto/refund-sale.dto';
 
 @Injectable()
 export class TransactionsService {
@@ -333,6 +334,98 @@ export class TransactionsService {
           penaltyReason: returnDto.penaltyReason || 'Devolución limpia',
           refundToCustomer: refundAmount, // 👈 Lo que el cajero saca de la caja para darle al cliente
           newTotalRevenue: transaction.total // Ganancia actualizada del ticket
+        }
+      };
+    });
+  }
+
+  async refundSale(transactionId: number, refundDto: RefundSaleDto, user: User, businessId: string) {
+    return await this.transactionRepository.manager.transaction(async (manager) => {
+
+      // 1. BUSCAR Y BLINDAR EL TICKET
+      const transaction = await manager.findOne(Transaction, {
+        where: { id: transactionId, businessId: businessId },
+        relations: ['contents'] // Traemos el detalle de la compra original
+      });
+
+      if (!transaction) throw new NotFoundException(`Ticket #${transactionId} no encontrado.`);
+      if (transaction.type !== TransactionType.SALE) throw new BadRequestException('Este ticket es de renta. Usa el módulo de devoluciones de renta.');
+      if (transaction.status === TransactionStatus.REFUNDED) throw new BadRequestException('Este ticket ya fue reembolsado en su totalidad.');
+
+      let totalRefundAmount = 0;
+
+      // 2. PROCESAR CADA ARTÍCULO DEVUELTO
+      for (const refundItem of refundDto.items) {
+        // Buscamos si el cliente realmente compró este producto en este ticket
+        const contentRow = transaction.contents.find(c => c.productId === refundItem.productId);
+
+        if (!contentRow) {
+          throw new BadRequestException(`El producto #${refundItem.productId} no pertenece a este ticket.`);
+        }
+
+        if (refundItem.quantityToReturn > contentRow.quantity) {
+          throw new BadRequestException(`No puedes devolver más unidades de las que se compraron (${contentRow.quantity}).`);
+        }
+
+        // --- A. MATEMÁTICA FINANCIERA ---
+        // Calculamos cuánto dinero hay que regresarle al cliente basado en el precio al que compró
+        const itemRefundValue = Number(contentRow.price) * refundItem.quantityToReturn;
+        totalRefundAmount += itemRefundValue;
+
+        // --- B. LOGÍSTICA DE INVENTARIO Y MERMAS (DRY) ---
+        // Aplicamos la misma lógica infalible que usamos en las rentas
+        const defectiveQty = Math.min(refundItem.defectiveQuantity, refundItem.quantityToReturn);
+        const intactQty = refundItem.quantityToReturn - defectiveQty;
+
+        if (intactQty > 0) {
+          // 📦 El producto está bueno, vuelve a la repisa para venderse de nuevo
+          await manager.increment(Product, { id: refundItem.productId }, "stock", intactQty);
+        }
+
+        if (defectiveQty > 0) {
+          // 🚨 El producto no sirve, se va directo a mermas
+          const adjustment = manager.create(StockAdjustment, {
+            businessId: businessId,
+            productId: refundItem.productId,
+            quantity: defectiveQty,
+            reason: AdjustmentReason.DAMAGE,
+            notes: `Devolución defectuosa (Ticket #${transaction.id}). Razón: ${refundDto.reason || 'No especificada'}`,
+            createdBy: user.id,
+          });
+          await manager.save(adjustment);
+        }
+
+        // --- C. MUTACIÓN DEL TICKET ---
+        contentRow.quantity -= refundItem.quantityToReturn;
+
+        if (contentRow.quantity === 0) {
+          // Si devolvió todos los mouses, borramos ese renglón del ticket
+          await manager.remove(contentRow);
+        } else {
+          // Si compró 2 y devolvió 1, guardamos que ahora solo compró 1
+          await manager.save(contentRow);
+        }
+      }
+
+      // 3. ACTUALIZAR EL TOTAL DEL TICKET
+      transaction.total = Number(transaction.total) - totalRefundAmount;
+
+      // Si el ticket quedó en $0, cambiamos el estatus para que la analítica no lo cuente
+      if (transaction.total <= 0) {
+        transaction.status = TransactionStatus.REFUNDED;
+        transaction.total = 0;
+      }
+
+      await manager.save(transaction);
+
+      // 4. REPORTE PARA EL CAJERO
+      return {
+        message: 'Reembolso procesado correctamente.',
+        transactionId: transaction.id,
+        newTicketStatus: transaction.status,
+        financials: {
+          cashToReturnToCustomer: totalRefundAmount, // 👈 Lo que el cajero debe sacar de la caja
+          newTicketTotal: transaction.total // La ganancia que sí se quedó el negocio
         }
       };
     });
