@@ -15,6 +15,7 @@ import { AdjustmentReason, StockAdjustment } from '../stock-adjustments/entities
 import { RefundSaleDto } from './dto/refund-sale.dto';
 import { CashRegister, RegisterStatus } from '../cash-registers/entities/cash-register.entity';
 import { Coupon } from '../coupons/entities/coupon.entity';
+import { CashMovement, CashMovementType } from '../cash-movements/entities/cash-movement.entity';
 
 @Injectable()
 export class TransactionsService {
@@ -151,6 +152,17 @@ export class TransactionsService {
 
       // 5. CÁLCULO FINAL PARA EL CAJERO
       const grandTotal = total - couponDiscount + deposit;
+
+      // Al final del proceso de creación, si hubo depósito en efectivo:
+      if (transaction.depositAmount > 0) {
+        await manager.save(manager.create(CashMovement, {
+          businessId,
+          userId: user.id,
+          amount: transaction.depositAmount,
+          type: CashMovementType.IN,
+          reason: `Depósito Recibido (Contrato #${transaction.id})`
+        }));
+      }
 
       return {
         message: isRental ? 'Renta activa. Equipo fuera de almacén.' : 'Venta procesada. Mainframe sincronizado.',
@@ -326,8 +338,24 @@ export class TransactionsService {
         throw new BadRequestException(`Operación rechazada: No puedes cobrar una penalidad ($${penalty}) mayor al depósito retenido ($${transaction.depositAmount}).`);
       }
 
+      // ... después de calcular refundAmount y antes del manager.save(transaction) ...
       const refundAmount = transaction.depositAmount - penalty;
 
+      // 🚨 REGISTRO AUTOMÁTICO EN EL LIBRO DE CAJA
+      if (refundAmount > 0) {
+        const refundMovement = manager.create(CashMovement, {
+          businessId: businessId,
+          userId: user.id,
+          amount: refundAmount,
+          type: CashMovementType.OUT,
+          reason: `Devolución de depósito (Contrato #${transaction.id})`,
+          date: new Date(),
+        });
+        await manager.save(refundMovement);
+      }
+
+      // Importante: Ponemos el depósito en 0 porque ya no lo tenemos nosotros
+      transaction.depositAmount = 0;
       // 💸 MAGIA CONTABLE: La ganancia real del negocio aumenta.
       transaction.total = Number(transaction.total) + penalty;
 

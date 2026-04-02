@@ -70,14 +70,12 @@ export class CashRegistersService {
     // 2. CALCULAR EFECTIVO REAL (BILLETES + DEPÓSITOS)
     const salesResult = await this.transactionRepository
       .createQueryBuilder('t')
-      // ✨ MAGIA: Sumamos el 'total' SOLO si es CASH.
-      // Pero el 'depositAmount' se suma SIEMPRE, porque la Regla de Oro dice que es físico.
-      .select(`SUM(CASE WHEN t.paymentMethod = 'CASH' THEN t.total ELSE 0 END) + COALESCE(SUM(t.depositAmount), 0)`, 'totalCashIn')
+      .select("SUM(CASE WHEN t.paymentMethod = 'CASH' THEN t.total ELSE 0 END)", 'totalSales')
       .where('t.userId = :userId', { userId: user.id })
       .andWhere('t.businessId = :businessId', { businessId: user.businessId })
-      .andWhere('t.status = :status', { status: 'COMPLETED' })
       .andWhere('t.transactionDate >= :openedAt', { openedAt: register.openedAt })
       .getRawOne();
+
 
     // ... tu código actual del salesResult (totalCashIn) ...
     const totalCashIn = parseFloat(salesResult.totalCashIn || 0);
@@ -100,8 +98,10 @@ export class CashRegistersService {
     // 🧮 4. MATEMÁTICAS DEL ARQUEO (LA FÓRMULA MAESTRA)
     const openingBalance = parseFloat(register.openingBalance.toString());
 
-    // Lo que el sistema exige: Fondo + Ventas + Entradas Extras - Gastos
-    const expectedBalance = openingBalance + totalCashIn + movementsIn - movementsOut;
+    // El expectedBalance ahora es: Fondo + Ventas + (Entradas Extra - Salidas/Devoluciones)
+    const expectedBalance = openingBalance +
+      parseFloat(salesResult.totalSales || 0) +
+      movementsIn - movementsOut;
 
     const actualBalance = closeDto.actualBalance;
     const difference = actualBalance - expectedBalance;
