@@ -17,6 +17,7 @@ import { CashRegistersModule } from './cash-registers/cash-registers.module';
 import { TicketsModule } from './tickets/tickets.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { StockAdjustmentsModule } from './stock-adjustments/stock-adjustments.module';
+import { CustomersModule } from './customers/customers.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { StockAdjustmentsModule } from './stock-adjustments/stock-adjustments.mo
     TicketsModule,
     CatalogModule,
     StockAdjustmentsModule,
+    CustomersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

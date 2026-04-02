@@ -2,6 +2,7 @@ import { Column, CreateDateColumn, Entity,
   Generated, JoinColumn, ManyToMany, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { Product } from '../../products/entities/product.entity';
 import { User } from '../../users/entities/user.entity';
+import { Customer } from '../../customers/entities/customer.entity';
 export enum TransactionType {
   SALE = 'SALE',     // Venta normal (se va y no vuelve)
   RENTAL = 'RENTAL', // Renta (tiene que regresar)
@@ -83,6 +84,15 @@ export class Transaction {
   @ManyToOne(() => User, (user) => user.transactions)
   @JoinColumn({ name: 'user_id' }) // Vincula la relación a la columna física user_id
   user: User;
+
+  // 👤 ID físico del cliente (Opcional, porque las ventas rápidas no ocupan cliente)
+  @Column({ name: 'customer_id', nullable: true })
+  customerId: number;
+
+  // Relación con el Customer
+  @ManyToOne(() => Customer, (customer) => customer.transactions)
+  @JoinColumn({ name: 'customer_id' })
+  customer: Customer;
 }
 
 @Entity('transaction_contents')
