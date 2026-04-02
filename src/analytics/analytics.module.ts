@@ -5,11 +5,12 @@ import { Product } from '../products/entities/product.entity';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Transaction, TransactionContent } from '../transactions/entities/transaction.entity';
 import { StockAdjustment } from '../stock-adjustments/entities/stock-adjustment.entity';
+import { CashMovement } from '../cash-movements/entities/cash-movement.entity';
 
 @Module({
   imports: [
     // 🛡️ Importamos las entidades necesarias del MCU
-    TypeOrmModule.forFeature([Transaction,TransactionContent, Product,StockAdjustment])
+    TypeOrmModule.forFeature([Transaction,TransactionContent, Product,StockAdjustment,CashMovement])
   ],
   controllers: [AnalyticsController],
   providers: [AnalyticsService],

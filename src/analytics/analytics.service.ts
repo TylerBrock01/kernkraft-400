@@ -5,6 +5,7 @@ import { Repository } from 'typeorm';
 import { User } from '../users/entities/user.entity';
 import { Transaction, TransactionContent } from '../transactions/entities/transaction.entity';
 import { StockAdjustment } from '../stock-adjustments/entities/stock-adjustment.entity';
+import { CashMovement } from '../cash-movements/entities/cash-movement.entity';
 
 @Injectable()
 export class AnalyticsService {
@@ -15,6 +16,8 @@ export class AnalyticsService {
     private readonly contentRepository: Repository<TransactionContent>,
     @InjectRepository(StockAdjustment) // 🛡️ Inyectamos las mermas
     private readonly adjustmentRepository: Repository<StockAdjustment>,
+    @InjectRepository(CashMovement)
+    private readonly cashMovementRepository: Repository<CashMovement>,
   ) {}
 
   async getWeeklySnapshot(user: User) {
@@ -223,7 +226,51 @@ export class AnalyticsService {
       }))
     };
 
-    // ... aquí termina tu código de customerInsights ...
+    // ... (después de customerInsights) ...
+
+    // --- 🏦 NUEVO BLOQUE: GASTOS OPERATIVOS Y UTILIDAD NETA ---
+    // 10. Consultamos gastos (OUT) del mes actual y anterior
+    const operatingExpenses = await this.cashMovementRepository
+      .createQueryBuilder('cm')
+      .select(`
+        SUM(CASE WHEN cm.date >= :startCurrent AND cm.type = 'OUT' THEN cm.amount ELSE 0 END) as current_expenses,
+        SUM(CASE WHEN cm.date >= :startPrev AND cm.date <= :endPrev AND cm.type = 'OUT' THEN cm.amount ELSE 0 END) as previous_expenses
+      `)
+      .setParameters({
+        startCurrent: startOfCurrentMonth,
+        startPrev: startOfPreviousMonth,
+        endPrev: endOfPreviousMonth
+      })
+      .where('cm.businessId = :businessId', { businessId })
+      .getRawOne();
+
+    const currentExpenses = parseFloat(operatingExpenses.current_expenses || 0);
+    const previousExpenses = parseFloat(operatingExpenses.previous_expenses || 0);
+
+    // 11. MATEMÁTICA FINAL: Utilidad Neta (Lo que realmente va al bolsillo)
+    const netProfitCurrent = currentRevenue - currentExpenses;
+    const netProfitPrevious = previousRevenue - previousExpenses;
+
+    let netProfitGrowth = 0;
+    if (netProfitPrevious > 0) {
+      netProfitGrowth = ((netProfitCurrent - netProfitPrevious) / netProfitPrevious) * 100;
+    } else if (netProfitPrevious === 0 && netProfitCurrent > 0) {
+      netProfitGrowth = 100; // Si el mes pasado ganaste 0 y hoy ganaste algo, es 100% crecimiento
+    }
+
+    const financialHealth = {
+      monthlyExpenses: {
+        current: currentExpenses,
+        previous: previousExpenses,
+        label: 'Gastos Operativos (Luz, Renta, Insumos)'
+      },
+      netProfit: {
+        amount: netProfitCurrent,
+        previousAmount: netProfitPrevious,
+        label: 'Utilidad Neta Real',
+        marginPercentage: currentRevenue > 0 ? (netProfitCurrent / currentRevenue) * 100 : 0
+      }
+    };
 
     // --- 💸 NUEVO BLOQUE: SALUD DEL FLUJO DE EFECTIVO ---
     // 9. Calculamos cuánto dinero en caja NO es del negocio (Depósitos retenidos)
@@ -262,7 +309,8 @@ export class AnalyticsService {
         },
         assetPerformance: assetPerformance, // 👈 Aquí inyectamos el ROI
         customerInsights: customerInsights,
-        cashFlowHealth: cashFlowHealth
+        cashFlowHealth: cashFlowHealth,
+        financialHealth: financialHealth,
       }
     };
   }
