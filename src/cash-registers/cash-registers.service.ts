@@ -136,4 +136,38 @@ export class CashRegistersService {
       }
     };
   }
+
+  // 🕵️‍♂️ Monitor de cajas para el dueño
+  async findAll(user: User, status?: string) {
+    const whereCondition: any = { businessId: user.businessId };
+
+    // Si mandamos un status por query (ej. ?status=OPEN), lo filtramos
+    if (status) {
+      whereCondition.status = status;
+    }
+
+    return await this.cashRegisterRepository.find({
+      where: whereCondition,
+      relations: ['user'], // Traemos quién es el dueño de esta caja
+      select: {
+        id: true,
+        openingBalance: true,
+        expectedBalance: true,
+        actualBalance: true,
+        difference: true,
+        status: true,
+        openedAt: true,
+        closedAt: true,
+        notes: true,
+        user: {
+          id: true,
+          email: true,
+          // fullName: true Si lo tienes en tu entidad User
+        }
+      },
+      order: {
+        openedAt: 'DESC' // Las más recientes arriba
+      }
+    });
+  }
 }
