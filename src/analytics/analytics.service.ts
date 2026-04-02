@@ -172,6 +172,56 @@ export class AnalyticsService {
         }
       };
     }));
+    // ... aquí termina tu código de assetPerformance ...
+
+    // --- 👥 NUEVO BLOQUE: VALOR DEL CLIENTE (LTV) ---
+    // 7. Buscamos a los clientes más valiosos de todos los tiempos (Top 3)
+    const topCustomers = await this.transactionRepository
+      .createQueryBuilder('t')
+      .leftJoin('t.customer', 'c') // Usamos la relación que creaste en la entidad
+      .select('c.name', 'customerName')
+      .addSelect('SUM(t.total)', 'totalSpent')
+      .addSelect('COUNT(t.id)', 'transactionCount')
+      .where('t.businessId = :businessId', { businessId })
+      .andWhere('t.status = :status', { status: 'COMPLETED' })
+      .andWhere('t.customerId IS NOT NULL') // Excluimos ventas anónimas de chicles
+      .groupBy('c.id')
+      .addGroupBy('c.name')
+      .orderBy('"totalSpent"', 'DESC')
+      .limit(3)
+      .getRawMany();
+
+    // 8. Calculamos qué porcentaje de las ventas viene de clientes registrados
+    const allTimeStats = await this.transactionRepository
+      .createQueryBuilder('t')
+      .select('SUM(t.total)', 'totalRevenue')
+      .where('t.businessId = :businessId', { businessId })
+      .andWhere('t.status = :status', { status: 'COMPLETED' })
+      .getRawOne();
+
+    const identifiedStats = await this.transactionRepository
+      .createQueryBuilder('t')
+      .select('SUM(t.total)', 'totalIdentified')
+      .where('t.businessId = :businessId', { businessId })
+      .andWhere('t.status = :status', { status: 'COMPLETED' })
+      .andWhere('t.customerId IS NOT NULL')
+      .getRawOne();
+
+    const totalAllTime = parseFloat(allTimeStats.totalRevenue || 0);
+    const totalIdentified = parseFloat(identifiedStats.totalIdentified || 0);
+
+    // Si la mayoría del dinero es anónimo, el porcentaje será bajito.
+    // Si casi todo es por renta de equipo pesado a clientes, rozará el 100%.
+    const loyaltyPercentage = totalAllTime > 0 ? (totalIdentified / totalAllTime) * 100 : 0;
+
+    const customerInsights = {
+      loyaltyPercentage: parseFloat(loyaltyPercentage.toFixed(2)),
+      topClients: topCustomers.map(c => ({
+        name: c.customerName,
+        totalSpent: parseFloat(c.totalSpent),
+        transactionCount: parseInt(c.transactionCount)
+      }))
+    };
 
     const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
@@ -189,7 +239,8 @@ export class AnalyticsService {
             isPositive: growthPercentage >= 0
           }
         },
-        assetPerformance: assetPerformance // 👈 Aquí inyectamos el ROI
+        assetPerformance: assetPerformance, // 👈 Aquí inyectamos el ROI
+        customerInsights: customerInsights
       }
     };
   }
