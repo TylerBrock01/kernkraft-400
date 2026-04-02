@@ -16,6 +16,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { CashRegistersModule } from './cash-registers/cash-registers.module';
 import { TicketsModule } from './tickets/tickets.module';
 import { CatalogModule } from './catalog/catalog.module';
+import { StockAdjustmentsModule } from './stock-adjustments/stock-adjustments.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { CatalogModule } from './catalog/catalog.module';
     CashRegistersModule,
     TicketsModule,
     CatalogModule,
+    StockAdjustmentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
