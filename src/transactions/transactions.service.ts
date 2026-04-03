@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -16,6 +16,8 @@ import { RefundSaleDto } from './dto/refund-sale.dto';
 import { CashRegister, RegisterStatus } from '../cash-registers/entities/cash-register.entity';
 import { Coupon } from '../coupons/entities/coupon.entity';
 import { CashMovement, CashMovementType } from '../cash-movements/entities/cash-movement.entity';
+import { ActiveUser } from '../auth/classes/active-user.class';
+import { PLAN_LIMITS } from '../business/config/plan-limits.config';
 
 @Injectable()
 export class TransactionsService {
@@ -28,20 +30,50 @@ export class TransactionsService {
     private readonly cashRegisterRepository: Repository<CashRegister>,
 
   ) {}
-  async create(createTransactionDto: CreateTransactionDto, user: User, businessId: string) {
+  async create(createTransactionDto: CreateTransactionDto, user: ActiveUser) { // <--- 2 parámetros
+    const businessId = user.businessId; // <--- Lo extraemos aquí adentro
+
     if (!user?.id) {
       throw new BadRequestException('Error crítico: El vendedor no está identificado en el sistema.');
     }
+
+    // ✨ 0. EL MURO DE PAGO (Cronómetro Mensual)
+    const maxTransactions = PLAN_LIMITS[user.plan].maxTransactions;
+
+    // Si el plan es LITE (0), no tiene acceso al Punto de Venta
+    if (maxTransactions === 0) {
+      throw new ForbiddenException(
+        'El módulo de Punto de Venta no está incluido en tu plan LITE. Haz upgrade a STARTER para comenzar a cobrar.'
+      );
+    }
+
+    // Si no es ilimitado, contamos las ventas del mes en curso
+    if (maxTransactions !== -1) {
+      const date = new Date();
+      const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
+      const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59);
+
+      const currentMonthTransactions = await this.transactionRepository.count({
+        where: {
+          businessId: businessId,
+          transactionDate: Between(firstDay, lastDay),
+        }
+      });
+
+      if (currentMonthTransactions >= maxTransactions) {
+        throw new ForbiddenException(
+          `Límite alcanzado: Tu plan (${user.plan}) permite máximo ${maxTransactions} ventas al mes. Haz upgrade a PRO.`
+        );
+      }
+    }
+
     // ✨ 1. ESCÁNER ANTI-OVERBOOKING (Validación de Stock)
-    // Extraemos todos los IDs de los productos que el cliente quiere llevarse
     const productIds = createTransactionDto.contents.map(item => item.productId);
 
-    // Buscamos esos productos en la base de datos de un solo golpe
     const dbProducts = await this.productRepository.find({
       where: { id: In(productIds), businessId: businessId }
     });
 
-    // Revisamos uno por uno si nos alcanza el inventario
     for (const item of createTransactionDto.contents) {
       const productInDb = dbProducts.find(p => p.id === item.productId);
 
@@ -69,6 +101,7 @@ export class TransactionsService {
         'Operación denegada: Debes abrir tu turno de caja (Cash Register) antes de procesar ventas o rentas.'
       );
     }
+
     // ⛺ VALIDACIÓN PREVIA DE RENTA
     const isRental = createTransactionDto.type === TransactionType.RENTAL;
     if (isRental && !createTransactionDto.returnDate) {
@@ -79,7 +112,7 @@ export class TransactionsService {
       let total = 0;
       const itemsParaProcesar = [];
 
-      // 1. ESCANEO DE PRODUCTOS (Seguridad Multi-tenant)
+      // 1. ESCANEO DE PRODUCTOS
       for (const item of createTransactionDto.contents) {
         const product = await manager.findOne(Product, {
           where: { id: item.productId, businessId: businessId }
@@ -88,7 +121,6 @@ export class TransactionsService {
         if (!product) throw new NotFoundException(`Producto #${item.productId} no disponible`);
         if (item.quantity > product.stock) throw new BadRequestException(`Stock insuficiente para: ${product.name}`);
 
-        // El total siempre es el precio del producto * cantidad (Ganancia pura)
         total += Number(product.price) * item.quantity;
         itemsParaProcesar.push({ product, quantity: item.quantity });
       }
@@ -98,7 +130,6 @@ export class TransactionsService {
       let couponDiscount = 0;
 
       if (createTransactionDto.coupon) {
-        // Buscamos el cupón dentro de esta misma transacción de base de datos
         const coupon = await manager.findOne(Coupon, {
           where: {
             name: createTransactionDto.coupon,
@@ -106,37 +137,30 @@ export class TransactionsService {
           }
         });
 
-        // 🛡️ Batería de validaciones financieras
         if (!coupon) throw new BadRequestException(`El cupón "${createTransactionDto.coupon}" no existe en este negocio.`);
         if (!coupon.isActive) throw new BadRequestException('Este cupón ha sido desactivado manualmente.');
         if (new Date() > coupon.expirationDate) throw new BadRequestException('El cupón ha expirado.');
         if (coupon.limit > 0 && coupon.used >= coupon.limit) throw new BadRequestException('El cupón alcanzó su límite de usos permitidos.');
         if (total < coupon.minPurchase) throw new BadRequestException(`Este cupón requiere una compra mínima de $${coupon.minPurchase}.`);
 
-        // 🧮 Matemáticas del descuento
         if (coupon.isPercentage) {
           couponDiscount = total * (Number(coupon.discount) / 100);
         } else {
           couponDiscount = Number(coupon.discount);
         }
 
-        // Tope de seguridad: No regalar dinero si el descuento supera el total
         if (couponDiscount > total) {
           couponDiscount = total;
         }
 
-        // 📉 Ajustamos el dinero a cobrar
         total -= couponDiscount;
         couponName = coupon.name;
 
-        // 🔐 INCREMENTO SEGURO DEL USO (Manejando concurrencia)
         await manager.increment(Coupon, { id: coupon.id }, 'used', 1);
-        }
+      }
 
-      // 3. CREAR CABECERA (Inyección del ADN Híbrido)
       const deposit = isRental ? (createTransactionDto.depositAmount || 0) : 0;
 
-      // 3. CREAR CABECERA DE LA TRANSACCIÓN
       // 3. CREAR CABECERA DE LA TRANSACCIÓN
       const transaction = manager.create(Transaction, {
         businessId: businessId,
@@ -149,9 +173,6 @@ export class TransactionsService {
         coupon: couponName,
         couponDiscount: couponDiscount,
         paymentMethod: createTransactionDto.paymentMethod || PaymentMethod.CASH,
-
-        // ✨ EL ARREGLO:
-        // Si el tipo es RENTAL, le ponemos OUT. Si es SALE, se queda null.
         rentalStatus: createTransactionDto.type === TransactionType.RENTAL
           ? RentalStatus.OUT
           : null
@@ -161,7 +182,6 @@ export class TransactionsService {
 
       // 4. CREAR DETALLES Y BAJAR STOCK
       for (const item of itemsParaProcesar) {
-        // 📦 Bajamos el stock en AMBOS casos. Si es venta, se fue. Si es renta, el cliente lo tiene físicamente.
         await manager.decrement(Product, { id: item.product.id }, "stock", item.quantity);
 
         const content = manager.create(TransactionContent, {
@@ -177,7 +197,6 @@ export class TransactionsService {
       // 5. CÁLCULO FINAL PARA EL CAJERO
       const grandTotal = total - couponDiscount + deposit;
 
-      // Al final del proceso de creación, si hubo depósito en efectivo:
       if (transaction.depositAmount > 0) {
         await manager.save(manager.create(CashMovement, {
           businessId,
@@ -192,20 +211,16 @@ export class TransactionsService {
         message: isRental ? 'Renta activa. Equipo fuera de almacén.' : 'Venta procesada. Mainframe sincronizado.',
         transactionId: savedTransaction.id,
         type: savedTransaction.type,
-
-        // 💵 Desglose financiero claro para el frontend/ticket
         financials: {
           subtotal: total,
           discount: couponDiscount,
           depositRetained: deposit,
-          grandTotalToCharge: grandTotal // 👈 Lo que el cliente debe pagar hoy en mostrador
+          grandTotalToCharge: grandTotal
         },
-
         returnDate: savedTransaction.returnDate
       };
     });
   }
-
   async findAll(user: User, transactionDate?: string, take: number = 10, skip: number = 0) {
 
     // 1. EL CANDADO BASE (Multi-tenancy)

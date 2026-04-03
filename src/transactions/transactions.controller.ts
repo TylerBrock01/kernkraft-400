@@ -16,6 +16,7 @@ import { RefundSaleDto } from './dto/refund-sale.dto';
 import { RequirePlan } from '../auth/decorators/require-plan.decorator';
 import { SubscriptionPlan } from '../business/entities/business.entity';
 import { PlanGuard } from '../auth/guards/plan.guard';
+import { ActiveUser } from '../auth/classes/active-user.class';
 
 @Controller('transactions')
 // ✨ 1. Agregamos el PlanGuard a la lista de seguridad
@@ -25,17 +26,14 @@ import { PlanGuard } from '../auth/guards/plan.guard';
 export class TransactionsController {
   constructor(private readonly transactionsService: TransactionsService) {}
 
-  @Roles(Role.ADMIN,Role.VENDEDOR)
+  @Roles(Role.ADMIN, Role.VENDEDOR)
   @Post()
   create(
     @Body() createTransactionDto: CreateTransactionDto,
-    @GetUser() user: User, // Obtenemos al vendedor/admin desde el token
+    @GetUser() user: ActiveUser, // <--- Usamos ActiveUser con su plan y negocio
   ) {
-    // Extraemos el businessId del usuario para asegurar que la venta
-    // se registre en la empresa correcta.
-    const businessId = user.businessId;
-
-    return this.transactionsService.create(createTransactionDto, user, businessId);
+    // Le pasamos solo el DTO y el User. El servicio se encarga del resto.
+    return this.transactionsService.create(createTransactionDto, user);
   }
 
   @Roles(Role.ADMIN)
