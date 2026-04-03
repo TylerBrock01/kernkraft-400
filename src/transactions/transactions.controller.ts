@@ -85,7 +85,7 @@ export class TransactionsController {
   }
 
   @Post(':id/return')
-  @Roles(Role.ADMIN, Role.VENDEDOR) // Solo el alto mando cancela
+  @Roles(Role.ADMIN, Role.VENDEDOR)
   async returnRental(
     @Param('id') id: number,
     @Body() returnDto: ReturnRentalDto,
@@ -95,6 +95,7 @@ export class TransactionsController {
   }
 
   @Post(':id/refund')
+  @Roles(Role.ADMIN) // Solo el alto mando hace reembolso
   refundSale(
     @Param('id', ParseIntPipe) id: number,
     @Body() refundDto: RefundSaleDto,
