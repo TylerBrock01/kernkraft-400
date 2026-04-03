@@ -14,7 +14,8 @@ import { SubscriptionPlan } from '../business/entities/business.entity';
 import { PlanGuard } from '../auth/guards/plan.guard';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { User } from './entities/user.entity';
-import * as bcrypt from 'bcrypt'; // No olvides importar bcrypt
+import * as bcrypt from 'bcrypt';
+import { ActiveUser } from '../auth/classes/active-user.class'; // No olvides importar bcrypt
 
 @Controller('users')
 @Roles(Role.SUPER_ADMIN,Role.ADMIN)
@@ -27,21 +28,18 @@ export class UsersController {
   @Post('employee')
   async createEmployee(
     @Body() createUserDto: CreateUserDto,
-    @GetUser() admin: User // Extraemos al dueño desde el JWT
+    @GetUser() admin: ActiveUser // <-- Cambiamos User por ActiveUser
   ) {
-    // ✨ MAGIA DE SEGURIDAD MULTI-TENANT:
-    // No importa si un hacker intenta mandar otro businessId en el JSON.
-    // Nosotros lo sobreescribimos a la fuerza con el ID de la empresa del Admin.
     createUserDto.businessId = admin.businessId;
 
-    // Asegurarnos de que no puedan crear a otro Super Admin por accidente/malicia
     if (createUserDto.role === Role.SUPER_ADMIN) {
       createUserDto.role = Role.VENDEDOR;
     }
 
     createUserDto.password = await bcrypt.hash(createUserDto.password, 10);
 
-    return this.usersService.create(createUserDto);
+    // Pasamos admin.plan como segundo argumento
+    return this.usersService.create(createUserDto, admin.plan);
   }
 
   @Get()

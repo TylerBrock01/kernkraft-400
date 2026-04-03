@@ -5,6 +5,8 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
 import { Repository } from 'typeorm';
+import { PLAN_LIMITS } from '../business/config/plan-limits.config';
+import { SubscriptionPlan } from '../business/entities/business.entity';
 
 @Injectable()
 export class UsersService {
@@ -13,14 +15,33 @@ export class UsersService {
     private userRepository: Repository<User>,
   ) {}
 
-  async create(createUserDto: CreateUserDto) {
-    const { email } = createUserDto;
+  async create(createUserDto: CreateUserDto, adminPlan?: SubscriptionPlan) {
+    const { email, businessId } = createUserDto;
 
+    // 1. EL MURO DE PAGO (Solo se activa si enviamos un plan, es decir, si es un empleado creando la cuenta)
+    if (adminPlan) {
+      const maxUsers = PLAN_LIMITS[adminPlan].maxUsers;
+
+      if (maxUsers !== -1) {
+        const currentUsersCount = await this.userRepository.count({
+          where: { businessId }
+        });
+
+        if (currentUsersCount >= maxUsers) {
+          throw new ForbiddenException(
+            `Límite alcanzado: Tu plan (${adminPlan}) permite máximo ${maxUsers} usuarios.`
+          );
+        }
+      }
+    }
+
+    // 2. Verificación de duplicados
     const existingUser = await this.userRepository.findOneBy({ email });
     if (existingUser) {
       throw new ConflictException('Este email ya está registrado en el motor');
     }
 
+    // 3. Creación
     const newUser = this.userRepository.create(createUserDto);
     return await this.userRepository.save(newUser);
   }
