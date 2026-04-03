@@ -39,15 +39,19 @@ export class ProductsController {
   constructor(
     private readonly productsService: ProductsService,
     private readonly uploadImageService: UploadImageService,
+
   ) {}
 
   @Roles(Role.ADMIN, Role.ALMACEN)
   @Post()
+  @UseInterceptors(FileInterceptor('file')) // 📸 Atrapa el archivo con la llave 'file'
   create(
     @Body() createProductDto: CreateProductDto,
-    @GetUser() user: ActiveUser // <--- Inyectamos el usuario completo con su plan y negocio
+    @GetUser() user: ActiveUser,
+    @UploadedFile() file?: Express.Multer.File // 📸 Lo recibimos como opcional
   ) {
-    return this.productsService.create(createProductDto, user);
+    // Le pasamos el archivo al servicio
+    return this.productsService.create(createProductDto, user, file);
   }
 
   @UseGuards(BusinessActiveGuard)

@@ -7,12 +7,14 @@ import { Repository, FindOptionsWhere } from 'typeorm';
 import { Product } from './entities/product.entity';
 import { ActiveUser } from '../auth/classes/active-user.class';
 import { PLAN_LIMITS } from '../business/config/plan-limits.config';
+import { UploadImageService } from '../upload-image/upload-image.service';
 
 @Injectable()
 export class ProductsService {
   constructor(
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
+    private readonly uploadImageService: UploadImageService,
   ) {}
 
   // 1. CREAR: Operación atómica vinculada al negocio
@@ -26,39 +28,46 @@ export class ProductsService {
   }
 
   // 2. EL MetODO CREATE ACTUALIZADO
-  async create(createProductDto: CreateProductDto, user: ActiveUser) {
-    // 1. EL MURO DE PAGO: Límite de inventario
+  async create(createProductDto: CreateProductDto, user: ActiveUser, file?: Express.Multer.File) {
+    // 1. EL MURO DE PAGO (Este código se queda exactamente igual)
     const maxProducts = PLAN_LIMITS[user.plan].maxProducts;
-
     if (maxProducts !== -1) {
       const currentProductsCount = await this.productRepository.count({
         where: { businessId: user.businessId }
       });
-
       if (currentProductsCount >= maxProducts) {
-        throw new ForbiddenException(
-          `Catálogo lleno: Tu plan (${user.plan}) permite máximo ${maxProducts} productos. Elimina artículos antiguos o haz upgrade.`
-        );
+        throw new ForbiddenException(`Catálogo lleno...`);
       }
     }
 
-    // 2. Generamos el slug automáticamente
+    // ✨ 2. PROCESAMIENTO DE IMAGEN
+    if (file) {
+      try {
+        const uploadedImage = await this.uploadImageService.uploadFile(file);
+        // Si todo sale bien, metemos la URL de Cloudinary al DTO
+        createProductDto.image = uploadedImage.secure_url;
+      } catch (error) {
+        throw new BadRequestException('Hubo un error al subir la imagen a la nube.');
+      }
+    }
+
+    // 3. Generamos el slug automáticamente
     const slug = this.generateSlug(createProductDto.name);
 
-    // 3. Verificamos si el slug ya existe en ESTE negocio
+    // 4. Verificamos duplicados
     const existingProduct = await this.productRepository.findOne({
-      where: { slug, businessId: user.businessId } // <--- Usamos el businessId del user
+      where: { slug, businessId: user.businessId }
     });
 
     if (existingProduct) {
       throw new BadRequestException('Ya tienes un producto con un nombre muy similar.');
     }
 
-    // 4. Creamos la instancia inyectando la data segura
+    // 5. Guardamos (Aquí createProductDto ya lleva la URL de la imagen adentro)
     const product = this.productRepository.create({
       ...createProductDto,
       slug: slug,
-      businessId: user.businessId, // <--- Usamos el businessId del user
+      businessId: user.businessId,
     });
 
     return await this.productRepository.save(product);

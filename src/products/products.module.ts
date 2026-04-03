@@ -7,7 +7,7 @@ import { UploadImageModule } from '../upload-image/upload-image.module';
 import { BusinessModule } from '../business/business.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Product]),UploadImageModule, BusinessModule],
+  imports: [TypeOrmModule.forFeature([Product]),UploadImageModule, BusinessModule,UploadImageModule],
   controllers: [ProductsController],
   providers: [ProductsService],
 })
