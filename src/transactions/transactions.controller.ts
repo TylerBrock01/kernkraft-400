@@ -38,7 +38,7 @@ export class TransactionsController {
     return this.transactionsService.create(createTransactionDto, user, businessId);
   }
 
-  @Roles(Role.ADMIN,Role.VENDEDOR)
+  @Roles(Role.ADMIN)
   @Get()
   findAll(
     @Query('transactionDate') transactionDate: string,
