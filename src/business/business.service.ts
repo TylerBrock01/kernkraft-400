@@ -15,7 +15,17 @@ export class BusinessService {
 
   async create(createBusinessDto: CreateBusinessDto) {
     try {
-      const business = this.businessRepository.create(createBusinessDto);
+      // ⏱️ LÓGICA DE DEMO AUTOMÁTICO
+      const licenseExpiration = new Date();
+      // Le sumamos exactamente 30 días al momento actual
+      licenseExpiration.setDate(licenseExpiration.getDate() + 30);
+
+      // Inyectamos la fecha de caducidad antes de guardar
+      const business = this.businessRepository.create({
+        ...createBusinessDto,
+        licenseValidUntil: licenseExpiration,
+      });
+
       return await this.businessRepository.save(business);
     } catch (error) {
       if (error.code === '23505') {
@@ -24,7 +34,6 @@ export class BusinessService {
       throw error;
     }
   }
-
   async findAll() {
     return await this.businessRepository.find({ where: { isActive: true } });
   }
@@ -92,6 +101,7 @@ export class BusinessService {
 
       // Le sumamos la cantidad de meses solicitados a la fecha actual
       currentDate.setMonth(currentDate.getMonth() + updateDto.monthsToAdd);
+      // currentDate.setFullYear(2025,1,1) test para finalizar antes los contratos
 
       business.licenseValidUntil = currentDate;
     }

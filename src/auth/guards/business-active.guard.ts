@@ -4,7 +4,7 @@ import {
   CanActivate,
   ExecutionContext,
   ForbiddenException,
-  BadRequestException
+  BadRequestException, HttpException, HttpStatus
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -46,13 +46,13 @@ export class BusinessActiveGuard implements CanActivate {
       throw new ForbiddenException(`El negocio "${business.name}" está temporalmente suspendido.`);
     }
 
-    // ⏳ REGLA 2: Licencia expirada
-    // Si tiene fecha límite, verificamos que el día de hoy sea MENOR a esa fecha
     if (business.licenseValidUntil) {
       const now = new Date();
       if (now > business.licenseValidUntil) {
-        throw new ForbiddenException(
-          `La licencia del negocio "${business.name}" expiró el ${business.licenseValidUntil.toLocaleDateString()}. Por favor, renueva la suscripción.`
+        // ✨ EL CAMBIO MAGISTRAL: 402 PAYMENT REQUIRED
+        throw new HttpException(
+          `La licencia del negocio "${business.name}" expiró el ${business.licenseValidUntil.toLocaleDateString()}. Por favor, renueva la suscripción.`,
+          HttpStatus.PAYMENT_REQUIRED
         );
       }
     }
