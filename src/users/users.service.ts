@@ -27,9 +27,11 @@ export class UsersService {
 
   // LOGIN: Traemos el businessId para inyectarlo en el JWT
   async findOneWithPassword(email: string) {
-    return this.userRepository.findOne({
-      where: { email },
-      select: ['id', 'email', 'password', 'role', 'name', 'businessId']
+    return await this.userRepository.findOne({
+      where: { email, isActive: true },
+      select: ['id', 'name', 'password', 'role', 'businessId', 'email'],
+      // ✨ ESTO ES LO QUE FALTA: Traernos el negocio y su plan
+      relations: ['business'],
     });
   }
 
