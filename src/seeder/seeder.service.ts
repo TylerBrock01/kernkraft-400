@@ -8,12 +8,12 @@ import { Transaction, TransactionContent } from '../transactions/entities/transa
 @Injectable()
 export class SeederService {
   constructor(private dataSource: DataSource) {}
-// async onModuleInit(){
-//   const connection =this.dataSource
-//   await connection.dropDatabase();
-//   await connection.synchronize();
-//   console.log('from onModuleInit');
-// }
+async onModuleInit(){
+  const connection =this.dataSource
+  await connection.dropDatabase();
+  await connection.synchronize();
+  console.log('from onModuleInit');
+}
 
   async seed() {
     const queryRunner = this.dataSource.createQueryRunner();
