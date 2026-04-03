@@ -12,6 +12,8 @@ import { BusinessActiveGuard } from '../auth/guards/business-active.guard';
 import { RequirePlan } from '../auth/decorators/require-plan.decorator';
 import { SubscriptionPlan } from '../business/entities/business.entity';
 import { PlanGuard } from '../auth/guards/plan.guard';
+import { GetUser } from '../auth/decorators/get-user.decorator';
+import { User } from './entities/user.entity';
 
 @Controller('users')
 @Roles(Role.SUPER_ADMIN,Role.ADMIN)
@@ -21,13 +23,21 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   // Crear usuarios adicionales (Ej: El admin creando vendedores)
-  @Post()
-  create(
+  @Post('employee')
+  createEmployee(
     @Body() createUserDto: CreateUserDto,
-    @GetBusinessId() businessId: string
+    @GetUser() admin: User // Extraemos al dueño desde el JWT
   ) {
-    // Forzamos que el nuevo usuario pertenezca al mismo negocio que quien lo crea
-    createUserDto.businessId = businessId;
+    // ✨ MAGIA DE SEGURIDAD MULTI-TENANT:
+    // No importa si un hacker intenta mandar otro businessId en el JSON.
+    // Nosotros lo sobreescribimos a la fuerza con el ID de la empresa del Admin.
+    createUserDto.businessId = admin.businessId;
+
+    // Asegurarnos de que no puedan crear a otro Super Admin por accidente/malicia
+    if (createUserDto.role === Role.SUPER_ADMIN) {
+      createUserDto.role = Role.VENDEDOR;
+    }
+
     return this.usersService.create(createUserDto);
   }
 

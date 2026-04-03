@@ -18,13 +18,10 @@ export class AuthService {
   async register(dto: AuthRegisterDto, adminSecret?: string) {
     const { password, role, ...userData } = dto;
 
-    if (role === Role.SUPER_ADMIN) {
-      // Usamos el ConfigService para mayor seguridad
-      const masterKey = this.configService.get<string>('SUPER_ADMIN_MASTER_KEY');
-
-      if (adminSecret !== masterKey) {
-        throw new UnauthorizedException('No tienes permiso para crear una cuenta de este nivel');
-      }
+    // ✨ BLOQUEO TOTAL: Nadie usa este endpoint sin la llave de la agencia
+    const masterKey = this.configService.get<string>('SUPER_ADMIN_MASTER_KEY');
+    if (adminSecret !== masterKey) {
+      throw new UnauthorizedException('Registro público deshabilitado. Solo la Agencia CAZA puede inicializar cuentas maestras.');
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -32,7 +29,7 @@ export class AuthService {
     return this.usersService.create({
       ...userData,
       password: hashedPassword,
-      role: role || Role.VENDEDOR,
+      role: role || Role.ADMIN, // Por defecto, si tú los creas, son ADMINS
     });
   }
 
