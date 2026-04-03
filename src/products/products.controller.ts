@@ -28,7 +28,9 @@ import { GetBusinessId } from '../auth/decorators/get-business-id.decorator';
 import { BusinessActiveGuard } from '../auth/guards/business-active.guard';
 import { RequirePlan } from '../auth/decorators/require-plan.decorator';
 import { SubscriptionPlan } from '../business/entities/business.entity';
-import { PlanGuard } from '../auth/guards/plan.guard'; // <--- Importante
+import { PlanGuard } from '../auth/guards/plan.guard';
+import { GetUser } from '../auth/decorators/get-user.decorator';
+import { ActiveUser } from '../auth/classes/active-user.class'; // <--- Importante
 
 @Controller('products')
 @UseGuards(JwtAuthGuard, RolesGuard, BusinessActiveGuard,PlanGuard)
@@ -43,9 +45,9 @@ export class ProductsController {
   @Post()
   create(
     @Body() createProductDto: CreateProductDto,
-    @GetBusinessId() businessId: string // <--- Inyectamos el candado de negocio
+    @GetUser() user: ActiveUser // <--- Inyectamos el usuario completo con su plan y negocio
   ) {
-    return this.productsService.create(createProductDto, businessId);
+    return this.productsService.create(createProductDto, user);
   }
 
   @UseGuards(BusinessActiveGuard)

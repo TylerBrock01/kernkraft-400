@@ -1,10 +1,12 @@
 // src/products/products.service.ts
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, FindOptionsWhere } from 'typeorm';
 import { Product } from './entities/product.entity';
+import { ActiveUser } from '../auth/classes/active-user.class';
+import { PLAN_LIMITS } from '../business/config/plan-limits.config';
 
 @Injectable()
 export class ProductsService {
@@ -24,24 +26,39 @@ export class ProductsService {
   }
 
   // 2. EL MetODO CREATE ACTUALIZADO
-  async create(createProductDto: CreateProductDto, businessId: string) {
-    // Generamos el slug automáticamente antes de guardar
+  async create(createProductDto: CreateProductDto, user: ActiveUser) {
+    // 1. EL MURO DE PAGO: Límite de inventario
+    const maxProducts = PLAN_LIMITS[user.plan].maxProducts;
+
+    if (maxProducts !== -1) {
+      const currentProductsCount = await this.productRepository.count({
+        where: { businessId: user.businessId }
+      });
+
+      if (currentProductsCount >= maxProducts) {
+        throw new ForbiddenException(
+          `Catálogo lleno: Tu plan (${user.plan}) permite máximo ${maxProducts} productos. Elimina artículos antiguos o haz upgrade.`
+        );
+      }
+    }
+
+    // 2. Generamos el slug automáticamente
     const slug = this.generateSlug(createProductDto.name);
-    // Dentro del método create, después de generar el slug:
+
+    // 3. Verificamos si el slug ya existe en ESTE negocio
     const existingProduct = await this.productRepository.findOne({
-      where: { slug, businessId }
+      where: { slug, businessId: user.businessId } // <--- Usamos el businessId del user
     });
 
     if (existingProduct) {
-      // Si el slug ya existe en ESTE negocio, le añadimos un número aleatorio o lanzamos error
       throw new BadRequestException('Ya tienes un producto con un nombre muy similar.');
     }
 
-    // Creamos la instancia del producto inyectando el businessId y el slug
+    // 4. Creamos la instancia inyectando la data segura
     const product = this.productRepository.create({
       ...createProductDto,
-      slug: slug, // <--- Aquí ocurre la magia
-      businessId: businessId,
+      slug: slug,
+      businessId: user.businessId, // <--- Usamos el businessId del user
     });
 
     return await this.productRepository.save(product);
