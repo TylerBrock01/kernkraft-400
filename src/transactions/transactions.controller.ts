@@ -13,9 +13,15 @@ import { CancelTransactionDto } from './dto/cancel-transaction';
 import { ReturnRentalDto } from './dto/return-rental.dto';
 import { BusinessActiveGuard } from '../auth/guards/business-active.guard';
 import { RefundSaleDto } from './dto/refund-sale.dto';
+import { RequirePlan } from '../auth/decorators/require-plan.decorator';
+import { SubscriptionPlan } from '../business/entities/business.entity';
+import { PlanGuard } from '../auth/guards/plan.guard';
 
 @Controller('transactions')
-@UseGuards(JwtAuthGuard, RolesGuard,BusinessActiveGuard)
+// ✨ 1. Agregamos el PlanGuard a la lista de seguridad
+@UseGuards(JwtAuthGuard, RolesGuard, BusinessActiveGuard, PlanGuard)
+// ✨ 2. Declaramos que este controlador es exclusivo desde MOTOR para arriba
+@RequirePlan(SubscriptionPlan.MOTOR)
 export class TransactionsController {
   constructor(private readonly transactionsService: TransactionsService) {}
 
@@ -49,7 +55,7 @@ export class TransactionsController {
     return this.transactionsService.findOne(+id);
   }
 
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN,Role.ALMACEN)
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateTransactionDto: UpdateTransactionDto) {
     return this.transactionsService.update(+id, updateTransactionDto);

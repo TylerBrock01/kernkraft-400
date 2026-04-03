@@ -55,7 +55,8 @@ export class AuthService {
       sub: user.id,
       role: user.role,
       name: user.name,
-      businessId: user.businessId // <--- EL DATO MAESTRO
+      businessId: user.businessId, // <--- EL DATO MAESTRO
+      plan: user.business?.plan || 'GENESIS'
     };
 
     return {
@@ -64,7 +65,8 @@ export class AuthService {
         email: user.email,
         name: user.name,
         role: user.role,
-        businessId: user.businessId
+        businessId: user.businessId,
+        plan: user.business?.plan // Opcional enviarlo al front también
       }
     };
   }

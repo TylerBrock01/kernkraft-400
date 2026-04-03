@@ -6,6 +6,11 @@ export enum BusinessType {
   FOOD = 'food',
   SERVICE = 'service',
 }
+export enum SubscriptionPlan {
+  GENESIS = 'GENESIS',
+  MOTOR = 'MOTOR',
+  ZENITH = 'ZENITH',
+}
 
 @Entity('businesses')
 export class Business {
@@ -17,6 +22,13 @@ export class Business {
 
   @Column({ unique: true })
   slug: string;
+
+  @Column({
+    type: 'enum',
+    enum: SubscriptionPlan,
+    default: SubscriptionPlan.GENESIS, // Por defecto todos inician en base
+  })
+  plan: SubscriptionPlan;
 
   @Column({
     type: 'enum',

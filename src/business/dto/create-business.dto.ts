@@ -1,5 +1,5 @@
 import { IsString, IsEnum, IsOptional, IsObject, MinLength } from 'class-validator';
-import { BusinessType } from '../entities/business.entity';
+import { BusinessType, SubscriptionPlan } from '../entities/business.entity';
 
 export class CreateBusinessDto {
   @IsString()
@@ -8,6 +8,12 @@ export class CreateBusinessDto {
 
   @IsString()
   slug: string;
+
+  @IsOptional()
+  @IsEnum(SubscriptionPlan, {
+    message: 'El plan debe ser un valor válido: GENESIS, MOTOR o ZENITH'
+  })
+  plan?: SubscriptionPlan;
 
   @IsEnum(BusinessType)
   type: BusinessType;
