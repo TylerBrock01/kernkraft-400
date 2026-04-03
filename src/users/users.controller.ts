@@ -14,17 +14,18 @@ import { SubscriptionPlan } from '../business/entities/business.entity';
 import { PlanGuard } from '../auth/guards/plan.guard';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { User } from './entities/user.entity';
+import * as bcrypt from 'bcrypt'; // No olvides importar bcrypt
 
 @Controller('users')
 @Roles(Role.SUPER_ADMIN,Role.ADMIN)
 @UseGuards(JwtAuthGuard, RolesGuard,BusinessActiveGuard,PlanGuard) // Protegemos todo el controlador
-@RequirePlan(SubscriptionPlan.STARTER)
+@RequirePlan(SubscriptionPlan.LITE)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   // Crear usuarios adicionales (Ej: El admin creando vendedores)
   @Post('employee')
-  createEmployee(
+  async createEmployee(
     @Body() createUserDto: CreateUserDto,
     @GetUser() admin: User // Extraemos al dueño desde el JWT
   ) {
@@ -37,6 +38,8 @@ export class UsersController {
     if (createUserDto.role === Role.SUPER_ADMIN) {
       createUserDto.role = Role.VENDEDOR;
     }
+
+    createUserDto.password = await bcrypt.hash(createUserDto.password, 10);
 
     return this.usersService.create(createUserDto);
   }
