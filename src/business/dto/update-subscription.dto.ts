@@ -1,4 +1,4 @@
-import { IsBoolean, IsDateString, IsOptional } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, Min } from 'class-validator';
 
 export class UpdateSubscriptionDto {
   @IsOptional()
@@ -6,6 +6,7 @@ export class UpdateSubscriptionDto {
   isActive?: boolean;
 
   @IsOptional()
-  @IsDateString({}, { message: 'Debe ser una fecha ISO válida (ej. 2026-05-01T00:00:00Z)' })
-  licenseValidUntil?: string;
+  @IsInt({ message: 'Los meses a renovar deben ser un número entero' })
+  @Min(1, { message: 'Debes añadir al menos 1 mes a la suscripción' })
+  monthsToAdd?: number;
 }

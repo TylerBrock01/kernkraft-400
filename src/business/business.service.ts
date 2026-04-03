@@ -51,6 +51,7 @@ export class BusinessService {
       throw error;
     }
   }
+
   async toggleStatus(id: string, isActive: boolean) {
     const business = await this.findOne(id); // Reutiliza tu buscador por ID
 
@@ -69,6 +70,7 @@ export class BusinessService {
       }
     };
   }
+
   // Importa NotFoundException de '@nestjs/common' si no lo tienes
   async updateSubscription(businessId: string, updateDto: UpdateSubscriptionDto) {
     const business = await this.businessRepository.findOne({
@@ -79,13 +81,19 @@ export class BusinessService {
       throw new NotFoundException(`El negocio con ID ${businessId} no existe.`);
     }
 
+    // 1. Actualización de estado activo/inactivo
     if (updateDto.isActive !== undefined) {
       business.isActive = updateDto.isActive;
     }
 
-    if (updateDto.licenseValidUntil !== undefined) {
-      // Convertimos el string ISO a un objeto Date real para TypeORM
-      business.licenseValidUntil = new Date(updateDto.licenseValidUntil);
+    // 2. Cálculo automático de la nueva fecha de corte
+    if (updateDto.monthsToAdd !== undefined) {
+      const currentDate = new Date(); // El reloj exacto de la renovación (Hoy)
+
+      // Le sumamos la cantidad de meses solicitados a la fecha actual
+      currentDate.setMonth(currentDate.getMonth() + updateDto.monthsToAdd);
+
+      business.licenseValidUntil = currentDate;
     }
 
     await this.businessRepository.save(business);
@@ -97,5 +105,4 @@ export class BusinessService {
       isActive: business.isActive,
       licenseValidUntil: business.licenseValidUntil
     };
-  }
-}
+  }}
