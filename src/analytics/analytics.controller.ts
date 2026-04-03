@@ -6,10 +6,15 @@ import { User } from '../users/entities/user.entity';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { Role } from '../auth/roles/roles';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { RequirePlan } from '../auth/decorators/require-plan.decorator';
+import { SubscriptionPlan } from '../business/entities/business.entity';
+import { BusinessActiveGuard } from '../auth/guards/business-active.guard';
+import { PlanGuard } from '../auth/guards/plan.guard';
 
 @Controller('analytics')
 @Roles(Role.SUPER_ADMIN,Role.ADMIN) // La analítica suele ser solo para el dueño
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard,BusinessActiveGuard,PlanGuard)
+@RequirePlan(SubscriptionPlan.ZENITH)
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
