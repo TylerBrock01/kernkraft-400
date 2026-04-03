@@ -20,6 +20,7 @@ import { StockAdjustmentsModule } from './stock-adjustments/stock-adjustments.mo
 import { CustomersModule } from './customers/customers.module';
 import { CashMovementsModule } from './cash-movements/cash-movements.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { SuperAdminModule } from './super_admin/super_admin.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     StockAdjustmentsModule,
     CustomersModule,
     CashMovementsModule,
+    SuperAdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],

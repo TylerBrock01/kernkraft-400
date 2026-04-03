@@ -1,4 +1,11 @@
 import { SubscriptionPlan } from '../entities/business.entity';
+export const PLAN_PRICES = {
+  [SubscriptionPlan.LITE]: 99,
+  [SubscriptionPlan.STARTER]: 299,
+  [SubscriptionPlan.PRO]: 599,
+  [SubscriptionPlan.BUSINESS]: 999,
+  [SubscriptionPlan.ZENITH]: 1499, // Tu plan VIP
+};
 
 // -1 significa ILIMITADO
 export const PLAN_LIMITS = {
