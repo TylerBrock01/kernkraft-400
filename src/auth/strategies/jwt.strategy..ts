@@ -13,11 +13,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
+    // Lo que retornes aquí es lo que se inyecta en el @GetUser() y en req.user
     return {
       id: payload.sub,
       email: payload.email,
       role: payload.role,
-      businessId: payload.businessId
+      name: payload.name,
+      businessId: payload.businessId,
+      plan: payload.plan, // <--- EL ESLABÓN PERDIDO: Pasamos el plan del token al request
     };
   }
 }
