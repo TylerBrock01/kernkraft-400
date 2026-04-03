@@ -19,9 +19,11 @@ import { CatalogModule } from './catalog/catalog.module';
 import { StockAdjustmentsModule } from './stock-adjustments/stock-adjustments.module';
 import { CustomersModule } from './customers/customers.module';
 import { CashMovementsModule } from './cash-movements/cash-movements.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(), // ✨ Activa el reloj interno del servidor
     ConfigModule.forRoot({
       isGlobal: true,
     }),
