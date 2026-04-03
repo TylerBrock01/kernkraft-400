@@ -46,7 +46,7 @@ export class BusinessController {
 
   // 5. EL KILLSWITCH (Ya lo tenías, ¡impecable!)
   @Patch(':id/status')
-  @Roles(Role.SUPER_ADMIN)
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
   @UseGuards(JwtAuthGuard, RolesGuard)
   toggleBusinessStatus(
     @Param('id') id: string,
@@ -58,7 +58,7 @@ export class BusinessController {
     return this.businessService.toggleStatus(id, isActive);
   }
   @Patch(':id/subscription')
-  @Roles(Role.SUPER_ADMIN)
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
   @UseGuards(JwtAuthGuard, RolesGuard)
   updateSubscription(
     @Param('id') id: string, // Recuerda que el Business ID es un UUID string
