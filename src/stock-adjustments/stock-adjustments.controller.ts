@@ -8,10 +8,14 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/roles/roles';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { User } from '../users/entities/user.entity';
+import { RequirePlan } from '../auth/decorators/require-plan.decorator';
+import { SubscriptionPlan } from '../business/entities/business.entity';
+import { PlanGuard } from '../auth/guards/plan.guard';
 
 @Controller('stock-adjustments')
 @Roles(Role.ADMIN, Role.ALMACEN)
-@UseGuards(JwtAuthGuard, RolesGuard, BusinessActiveGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, BusinessActiveGuard,PlanGuard)
+@RequirePlan(SubscriptionPlan.MOTOR)
 export class StockAdjustmentsController {
   constructor(private readonly stockAdjustmentsService: StockAdjustmentsService) {}
 

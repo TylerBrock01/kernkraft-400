@@ -10,10 +10,14 @@ import { Role } from '../auth/roles/roles';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { User } from '../users/entities/user.entity';
 import { JwtAuthGuard } from '../jwt-auth/jwt-auth.guard';
+import { RequirePlan } from '../auth/decorators/require-plan.decorator';
+import { SubscriptionPlan } from '../business/entities/business.entity';
+import { PlanGuard } from '../auth/guards/plan.guard';
 
 @Controller('customers')
 @Roles(Role.ADMIN, Role.VENDEDOR, Role.ALMACEN) // Todos pueden ver/crear clientes
-@UseGuards(JwtAuthGuard, RolesGuard, BusinessActiveGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, BusinessActiveGuard,PlanGuard)
+@RequirePlan(SubscriptionPlan.MOTOR)
 export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 
