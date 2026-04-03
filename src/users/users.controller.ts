@@ -19,7 +19,7 @@ import * as bcrypt from 'bcrypt'; // No olvides importar bcrypt
 @Controller('users')
 @Roles(Role.SUPER_ADMIN,Role.ADMIN)
 @UseGuards(JwtAuthGuard, RolesGuard,BusinessActiveGuard,PlanGuard) // Protegemos todo el controlador
-@RequirePlan(SubscriptionPlan.LITE)
+@RequirePlan(SubscriptionPlan.STARTER)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
