@@ -9,9 +9,13 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Role } from '../auth/roles/roles';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { BusinessActiveGuard } from '../auth/guards/business-active.guard';
+import { RequirePlan } from '../auth/decorators/require-plan.decorator';
+import { SubscriptionPlan } from '../business/entities/business.entity';
+import { PlanGuard } from '../auth/guards/plan.guard';
 
 @Controller('cash-registers')
-@UseGuards(JwtAuthGuard, RolesGuard, BusinessActiveGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, BusinessActiveGuard,PlanGuard)
+@RequirePlan(SubscriptionPlan.MOTOR)
 export class CashRegistersController {
   constructor(private readonly cashRegistersService: CashRegistersService) {}
 
