@@ -11,7 +11,7 @@ export class CreateBusinessDto {
 
   @IsOptional()
   @IsEnum(SubscriptionPlan, {
-    message: 'El plan debe ser un valor válido: GENESIS, MOTOR o ZENITH'
+    message: 'El plan debe ser: LITE, STARTER, PRO, BUSINESS o ZENITH'
   })
   plan?: SubscriptionPlan;
 

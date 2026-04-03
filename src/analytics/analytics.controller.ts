@@ -14,7 +14,7 @@ import { PlanGuard } from '../auth/guards/plan.guard';
 @Controller('analytics')
 @Roles(Role.SUPER_ADMIN,Role.ADMIN) // La analítica suele ser solo para el dueño
 @UseGuards(JwtAuthGuard, RolesGuard,BusinessActiveGuard,PlanGuard)
-@RequirePlan(SubscriptionPlan.ZENITH)
+@RequirePlan(SubscriptionPlan.PRO)
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 

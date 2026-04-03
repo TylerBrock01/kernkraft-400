@@ -14,7 +14,7 @@ import { PlanGuard } from '../auth/guards/plan.guard';
 
 @Controller('cash-movements')
 @UseGuards(JwtAuthGuard, RolesGuard, BusinessActiveGuard,PlanGuard)
-@RequirePlan(SubscriptionPlan.MOTOR)
+@RequirePlan(SubscriptionPlan.STARTER)
 export class CashMovementsController {
   constructor(private readonly cashMovementsService: CashMovementsService) {}
 

@@ -21,11 +21,13 @@ export class PlanGuard implements CanActivate {
     // 2. Extraemos el usuario (su plan viene tatuado en el JWT)
     const { user } = context.switchToHttp().getRequest();
 
-    // 3. LA JERARQUÍA (El corazón matemático del guard)
+    // 3. LA NUEVA JERARQUÍA CAZA
     const planHierarchy = {
-      [SubscriptionPlan.GENESIS]: 1,
-      [SubscriptionPlan.MOTOR]: 2,
-      [SubscriptionPlan.ZENITH]: 3,
+      [SubscriptionPlan.LITE]: 1,
+      [SubscriptionPlan.STARTER]: 2,
+      [SubscriptionPlan.PRO]: 3,
+      [SubscriptionPlan.BUSINESS]: 4,
+      [SubscriptionPlan.ZENITH]: 5,
     };
 
     const userPlanLevel = planHierarchy[user.plan] || 0;

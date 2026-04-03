@@ -7,8 +7,10 @@ export enum BusinessType {
   SERVICE = 'service',
 }
 export enum SubscriptionPlan {
-  GENESIS = 'GENESIS',
-  MOTOR = 'MOTOR',
+  LITE = 'LITE',
+  STARTER = 'STARTER',
+  PRO = 'PRO',         // Este es el antiguo "Motor"
+  BUSINESS = 'BUSINESS',
   ZENITH = 'ZENITH',
 }
 
@@ -26,7 +28,7 @@ export class Business {
   @Column({
     type: 'enum',
     enum: SubscriptionPlan,
-    default: SubscriptionPlan.GENESIS, // Por defecto todos inician en base
+    default: SubscriptionPlan.LITE, // Por defecto todos inician en base
   })
   plan: SubscriptionPlan;
 

@@ -25,9 +25,14 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/roles/roles';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { GetBusinessId } from '../auth/decorators/get-business-id.decorator';
-import { BusinessActiveGuard } from '../auth/guards/business-active.guard'; // <--- Importante
+import { BusinessActiveGuard } from '../auth/guards/business-active.guard';
+import { RequirePlan } from '../auth/decorators/require-plan.decorator';
+import { SubscriptionPlan } from '../business/entities/business.entity';
+import { PlanGuard } from '../auth/guards/plan.guard'; // <--- Importante
 
 @Controller('products')
+@UseGuards(JwtAuthGuard, RolesGuard, BusinessActiveGuard,PlanGuard)
+@RequirePlan(SubscriptionPlan.LITE)
 export class ProductsController {
   constructor(
     private readonly productsService: ProductsService,
@@ -35,7 +40,6 @@ export class ProductsController {
   ) {}
 
   @Roles(Role.ADMIN, Role.ALMACEN)
-  @UseGuards(JwtAuthGuard, RolesGuard, BusinessActiveGuard)
   @Post()
   create(
     @Body() createProductDto: CreateProductDto,
@@ -68,7 +72,6 @@ export class ProductsController {
   }
 
   @Roles(Role.ADMIN, Role.ALMACEN)
-  @UseGuards(JwtAuthGuard, RolesGuard, BusinessActiveGuard)
   @Patch(':id')
   update(
     @Param('id', IdValidationPipe) id: string,
@@ -79,7 +82,6 @@ export class ProductsController {
   }
 
   @Roles(Role.ADMIN)
-  @UseGuards(JwtAuthGuard, RolesGuard, BusinessActiveGuard)
   @Delete(':id')
   remove(
     @Param('id', IdValidationPipe) id: string,
@@ -89,7 +91,6 @@ export class ProductsController {
   }
 
   @Roles(Role.ADMIN, Role.ALMACEN)
-  @UseGuards(JwtAuthGuard, RolesGuard, BusinessActiveGuard)
   @Post('upload-image')
   @UseInterceptors(FileInterceptor('file'))
   uploadImage(@UploadedFile() file: Express.Multer.File) {

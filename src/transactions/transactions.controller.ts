@@ -21,7 +21,7 @@ import { PlanGuard } from '../auth/guards/plan.guard';
 // ✨ 1. Agregamos el PlanGuard a la lista de seguridad
 @UseGuards(JwtAuthGuard, RolesGuard, BusinessActiveGuard, PlanGuard)
 // ✨ 2. Declaramos que este controlador es exclusivo desde MOTOR para arriba
-@RequirePlan(SubscriptionPlan.MOTOR)
+@RequirePlan(SubscriptionPlan.STARTER)
 export class TransactionsController {
   constructor(private readonly transactionsService: TransactionsService) {}
 

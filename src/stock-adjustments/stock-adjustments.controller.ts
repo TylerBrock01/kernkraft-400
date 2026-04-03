@@ -15,7 +15,7 @@ import { PlanGuard } from '../auth/guards/plan.guard';
 @Controller('stock-adjustments')
 @Roles(Role.ADMIN, Role.ALMACEN)
 @UseGuards(JwtAuthGuard, RolesGuard, BusinessActiveGuard,PlanGuard)
-@RequirePlan(SubscriptionPlan.MOTOR)
+@RequirePlan(SubscriptionPlan.STARTER)
 export class StockAdjustmentsController {
   constructor(private readonly stockAdjustmentsService: StockAdjustmentsService) {}
 

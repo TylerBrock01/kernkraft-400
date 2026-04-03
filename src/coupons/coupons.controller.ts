@@ -16,7 +16,7 @@ import { PlanGuard } from '../auth/guards/plan.guard';
 
 @Controller('coupons')
 @UseGuards(JwtAuthGuard, RolesGuard, BusinessActiveGuard,PlanGuard)
-@RequirePlan(SubscriptionPlan.MOTOR)
+@RequirePlan(SubscriptionPlan.STARTER)
 export class CouponsController {
   constructor(private readonly couponsService: CouponsService) {}
 

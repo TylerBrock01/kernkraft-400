@@ -9,10 +9,14 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/roles/roles';
 import { GetBusinessId } from '../auth/decorators/get-business-id.decorator';
 import { BusinessActiveGuard } from '../auth/guards/business-active.guard';
+import { RequirePlan } from '../auth/decorators/require-plan.decorator';
+import { SubscriptionPlan } from '../business/entities/business.entity';
+import { PlanGuard } from '../auth/guards/plan.guard';
 
 @Controller('users')
 @Roles(Role.SUPER_ADMIN,Role.ADMIN)
-@UseGuards(JwtAuthGuard, RolesGuard,BusinessActiveGuard) // Protegemos todo el controlador
+@UseGuards(JwtAuthGuard, RolesGuard,BusinessActiveGuard,PlanGuard) // Protegemos todo el controlador
+@RequirePlan(SubscriptionPlan.STARTER)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 

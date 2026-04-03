@@ -17,7 +17,7 @@ import { PlanGuard } from '../auth/guards/plan.guard';
 @Controller('customers')
 @Roles(Role.ADMIN, Role.VENDEDOR, Role.ALMACEN) // Todos pueden ver/crear clientes
 @UseGuards(JwtAuthGuard, RolesGuard, BusinessActiveGuard,PlanGuard)
-@RequirePlan(SubscriptionPlan.MOTOR)
+@RequirePlan(SubscriptionPlan.STARTER)
 export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 
