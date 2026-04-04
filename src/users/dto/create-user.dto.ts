@@ -29,7 +29,7 @@ export class CreateUserDto {
   role?: Role;
 
   // EL REQUISITO INDUSTRIAL:
-  @IsNotEmpty({ message: 'El businessId es obligatorio para el MCU' })
+  @IsOptional()
   @IsUUID('4', { message: 'El businessId debe ser un UUID válido' })
   businessId: string;
 }
