@@ -1,5 +1,6 @@
 import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, IsObject, Min, IsInt } from 'class-validator';
 import { BusinessType } from '../../business/entities/business.entity';
+import { Type } from 'class-transformer';
 
 export class CreateProductDto {
   @IsNotEmpty({ message: 'El nombre es requerido' })
@@ -15,11 +16,13 @@ export class CreateProductDto {
   slug?: string;
 
   @IsNotEmpty({ message: 'El precio es requerido' })
+  @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   price: number;
 
   @IsNotEmpty({ message: 'El stock es requerido' })
+  @Type(() => Number)
   @IsInt()
   @Min(0)
   stock: number;
