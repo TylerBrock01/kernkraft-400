@@ -78,7 +78,7 @@ export class ProductsService {
     // 1. La regla de oro: NUNCA romper el aislamiento del Tenant (businessId)
     const baseConditions = {
       businessId: user.businessId,
-      isActive: true
+      // isActive: true
     };
 
     // 2. Construimos la consulta dinámicamente
