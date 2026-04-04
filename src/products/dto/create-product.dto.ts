@@ -1,6 +1,6 @@
 import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, IsObject, Min, IsInt } from 'class-validator';
 import { BusinessType } from '../../business/entities/business.entity';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 
 export class CreateProductDto {
   @IsNotEmpty({ message: 'El nombre es requerido' })
@@ -37,6 +37,10 @@ export class CreateProductDto {
 
   // FLEXIBILIDAD TOTAL: Aquí entra cualquier campo extra (color, talla, ingredientes)
   @IsOptional()
+  @Transform(({ value }) => {
+    try { return typeof value === 'string' ? JSON.parse(value) : value; }
+    catch (e) { return value; }
+  })
   @IsObject()
   metadata?: Record<string, any>;
 }
