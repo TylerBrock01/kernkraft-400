@@ -7,6 +7,7 @@ import { User } from './entities/user.entity';
 import { Repository } from 'typeorm';
 import { PLAN_LIMITS } from '../business/config/plan-limits.config';
 import { SubscriptionPlan } from '../business/entities/business.entity';
+import { ActiveUser } from '../auth/classes/active-user.class';
 
 @Injectable()
 export class UsersService {
@@ -57,9 +58,9 @@ export class UsersService {
   }
 
   // READ ALL: Solo los usuarios de MI negocio
-  async findAll(businessId: string) {
+  async findAll(user: ActiveUser) {
     return await this.userRepository.find({
-      where: { businessId, isActive: true },
+      where: { businessId: user.businessId, isActive: true },
       order: { id: 'DESC' }
     });
   }

@@ -43,9 +43,9 @@ export class UsersController {
   }
 
   @Get()
-  findAll(@GetBusinessId() businessId: string) {
+  findAll(@GetUser() user: ActiveUser) {
     // Solo devolvemos usuarios de MI empresa
-    return this.usersService.findAll(businessId);
+    return this.usersService.findAll(user);
   }
 
   @Get(':id')
