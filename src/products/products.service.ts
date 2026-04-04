@@ -75,12 +75,12 @@ export class ProductsService {
 
   // 2. LEER TODO: Filtrado por industria y paginación
   async findAll(
-    businessId: string,
+    user: ActiveUser,
     take: number = 10,
     skip: number = 0
   ) {
     const where: FindOptionsWhere<Product> = {
-      businessId,
+      businessId: user.businessId,
       isActive: true
     };
 

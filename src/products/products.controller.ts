@@ -33,6 +33,7 @@ import { GetUser } from '../auth/decorators/get-user.decorator';
 import { ActiveUser } from '../auth/classes/active-user.class'; // <--- Importante
 
 @Controller('products')
+@Roles(Role.ADMIN, Role.ALMACEN)
 @UseGuards(JwtAuthGuard, RolesGuard, BusinessActiveGuard,PlanGuard)
 @RequirePlan(SubscriptionPlan.LITE)
 export class ProductsController {
@@ -54,18 +55,17 @@ export class ProductsController {
     return this.productsService.create(createProductDto, user, file);
   }
 
-  @UseGuards(BusinessActiveGuard)
   @Get()
+  @Roles(Role.ADMIN, Role.ALMACEN)
   findAll(
     @Query() query: GetProductQueryDto,
-    @Query('businessId') businessId: string // <--- El cliente envía el ID por la URL
+    @GetUser() user: ActiveUser,
   ) {
-    if (!businessId) throw new BadRequestException('ID de negocio requerido para ver el catálogo');
 
     const take = query.take || 10;
     const skip = query.skip || 0;
 
-    return this.productsService.findAll(businessId, take, skip);
+    return this.productsService.findAll(user, take, skip);
   }
 
   @UseGuards(BusinessActiveGuard)
