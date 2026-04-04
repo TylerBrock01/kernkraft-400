@@ -80,10 +80,12 @@ export class ProductsController {
 
   @Roles(Role.ADMIN, Role.ALMACEN)
   @Patch(':id')
+  @UseInterceptors(FileInterceptor('file')) // 🛡️ Permite recibir FormData
   update(
     @Param('id', IdValidationPipe) id: string,
     @Body() updateProductDto: UpdateProductDto,
     @GetUser() user: ActiveUser,
+    @UploadedFile() file?: Express.Multer.File // 📸 Opcional, por si mandan archivo físico
   ) {
     return this.productsService.update(+id, updateProductDto, user);
   }
