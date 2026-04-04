@@ -4,7 +4,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
-import { Repository } from 'typeorm';
+import { FindOptionsWhere, ILike, Repository } from 'typeorm';
 import { PLAN_LIMITS } from '../business/config/plan-limits.config';
 import { SubscriptionPlan } from '../business/entities/business.entity';
 import { ActiveUser } from '../auth/classes/active-user.class';
@@ -58,11 +58,31 @@ export class UsersService {
   }
 
   // READ ALL: Solo los usuarios de MI negocio
-  async findAll(user: ActiveUser) {
-    return await this.userRepository.find({
-      where: { businessId: user.businessId, isActive: true },
-      order: { id: 'DESC' }
+  async findAll(user: ActiveUser,take: number, skip: number,search?: string) {
+
+    // 1. La regla de oro: NUNCA romper el aislamiento del Tenant (businessId)
+    const baseConditions = {
+      businessId: user.businessId,
+      // isActive: true
+    };
+    // 2. Construimos la consulta dinámicamente
+    // Si TypeORM recibe un arreglo [], lo interpreta como un "OR" (O una cosa, O la otra)
+    const where: FindOptionsWhere<User> | FindOptionsWhere<User>[] = search
+      ? [
+        // Búsqueda en el Nombre (Respetando siempre el businessId)
+        { ...baseConditions, name: ILike(`%${search}%`) },
+        // Búsqueda en la Descripción
+        { ...baseConditions, email: ILike(`%${search}%`) }
+      ]
+      : baseConditions; // Si no hay búsqueda, traemos todo normal
+
+    const [products, total] = await this.userRepository.findAndCount({
+      where,
+      order: { id: "DESC" },
+      take,
+      skip
     });
+    return { products, total };
   }
 
   // READ ONE: Verificación de propiedad (ID + BusinessId)

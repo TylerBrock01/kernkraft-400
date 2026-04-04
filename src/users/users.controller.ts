@@ -1,5 +1,5 @@
 // src/users/users.controller.ts
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -15,7 +15,9 @@ import { PlanGuard } from '../auth/guards/plan.guard';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { User } from './entities/user.entity';
 import * as bcrypt from 'bcrypt';
-import { ActiveUser } from '../auth/classes/active-user.class'; // No olvides importar bcrypt
+import { ActiveUser } from '../auth/classes/active-user.class';
+import { GetProductQueryDto } from '../products/dto/get-product.dto';
+import { GetUserQueryDto } from './dto/get-user-query.dto'; // No olvides importar bcrypt
 
 @Controller('users')
 @Roles(Role.SUPER_ADMIN,Role.ADMIN)
@@ -43,9 +45,14 @@ export class UsersController {
   }
 
   @Get()
-  findAll(@GetUser() user: ActiveUser) {
+  findAll(
+    @Query() query: GetUserQueryDto, // 🎯 Ahora sí usamos el DTO correcto
+    @GetUser() user: ActiveUser) {
+    const take = query.take || 10;
+    const skip = query.skip || 0;
+    const search = query.search || ''; // Si no buscan nada, va vacío
     // Solo devolvemos usuarios de MI empresa
-    return this.usersService.findAll(user);
+    return this.usersService.findAll(user,take,skip,search);
   }
 
   @Get(':id')
