@@ -1,4 +1,4 @@
-import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, IsObject, Min, IsInt } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, IsObject, Min, IsInt, IsBoolean } from 'class-validator';
 import { BusinessType } from '../../business/entities/business.entity';
 import { Transform, Type } from 'class-transformer';
 
@@ -34,6 +34,10 @@ export class CreateProductDto {
   @IsNotEmpty({ message: 'El tipo de industria es requerido' })
   @IsEnum(BusinessType)
   type: BusinessType;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 
   // FLEXIBILIDAD TOTAL: Aquí entra cualquier campo extra (color, talla, ingredientes)
   @IsOptional()
