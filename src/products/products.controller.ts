@@ -64,37 +64,38 @@ export class ProductsController {
 
     const take = query.take || 10;
     const skip = query.skip || 0;
+    const search = query.search || ''; // Si no buscan nada, va vacío
 
-    return this.productsService.findAll(user, take, skip);
+    return this.productsService.findAll(user, take, skip,search);
   }
 
   @UseGuards(BusinessActiveGuard)
   @Get(':id')
   findOne(
     @Param('id', IdValidationPipe) id: string,
-    @GetBusinessId() businessId: string
+    @GetUser() user: ActiveUser,
   ) {
-    return this.productsService.findOne(+id, businessId);
+    return this.productsService.findOne(+id, user);
   }
 
-  @Roles(Role.ADMIN, Role.ALMACEN)
-  @Patch(':id')
-  update(
-    @Param('id', IdValidationPipe) id: string,
-    @Body() updateProductDto: UpdateProductDto,
-    @GetBusinessId() businessId: string
-  ) {
-    return this.productsService.update(+id, updateProductDto, businessId);
-  }
-
-  @Roles(Role.ADMIN)
-  @Delete(':id')
-  remove(
-    @Param('id', IdValidationPipe) id: string,
-    @GetBusinessId() businessId: string
-  ) {
-    return this.productsService.remove(+id, businessId);
-  }
+  // @Roles(Role.ADMIN, Role.ALMACEN)
+  // @Patch(':id')
+  // update(
+  //   @Param('id', IdValidationPipe) id: string,
+  //   @Body() updateProductDto: UpdateProductDto,
+  //   @GetBusinessId() businessId: string
+  // ) {
+  //   return this.productsService.update(+id, updateProductDto, businessId);
+  // }
+  //
+  // @Roles(Role.ADMIN)
+  // @Delete(':id')
+  // remove(
+  //   @Param('id', IdValidationPipe) id: string,
+  //   @GetBusinessId() businessId: string
+  // ) {
+  //   return this.productsService.remove(+id, businessId);
+  // }
 
   @Roles(Role.ADMIN, Role.ALMACEN)
   @Post('upload-image')

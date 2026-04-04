@@ -1,20 +1,15 @@
-import { IsNotEmpty, IsNumber, IsNumberString, IsOptional } from 'class-validator';
+import { IsNumberString, IsOptional, IsString } from 'class-validator';
 
 export class GetProductQueryDto {
   @IsOptional()
-  @IsNumberString({}, { message: 'category_id debe ser un numero' })
-  category_id?: number;
+  @IsString()
+  search?: string; // 🔍 Nuestro nuevo radar
 
   @IsOptional()
-  @IsNumberString({}, { message: 'deck_id debe ser un numero' })
-  deck_id?: number;
-
-  @IsOptional()
-  @IsNumberString({}, { message: 'la cantidad debe ser un numero' })
+  @IsNumberString({}, { message: 'El límite (take) debe ser un número' })
   take?: number;
 
   @IsOptional()
-  @IsNumberString({}, { message: 'la cantidad debe ser un numero' })
+  @IsNumberString({}, { message: 'El salto (skip) debe ser un número' })
   skip?: number;
-
 }

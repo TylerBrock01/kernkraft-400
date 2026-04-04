@@ -3,7 +3,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, FindOptionsWhere } from 'typeorm';
+import { Repository, FindOptionsWhere, ILike } from 'typeorm';
 import { Product } from './entities/product.entity';
 import { ActiveUser } from '../auth/classes/active-user.class';
 import { PLAN_LIMITS } from '../business/config/plan-limits.config';
@@ -74,12 +74,25 @@ export class ProductsService {
   }
 
   // 2. LEER TODO: Filtrado por industria y paginación
-  async findAll(user: ActiveUser, take: number = 10, skip: number = 0) {
-    const where: FindOptionsWhere<Product> = {
+  async findAll(user: ActiveUser, take: number = 10, skip: number = 0, search?: string) {
+    // 1. La regla de oro: NUNCA romper el aislamiento del Tenant (businessId)
+    const baseConditions = {
       businessId: user.businessId,
       isActive: true
     };
 
+    // 2. Construimos la consulta dinámicamente
+    // Si TypeORM recibe un arreglo [], lo interpreta como un "OR" (O una cosa, O la otra)
+    const where: FindOptionsWhere<Product> | FindOptionsWhere<Product>[] = search
+      ? [
+        // Búsqueda en el Nombre (Respetando siempre el businessId)
+        { ...baseConditions, name: ILike(`%${search}%`) },
+        // Búsqueda en la Descripción
+        { ...baseConditions, description: ILike(`%${search}%`) }
+      ]
+      : baseConditions; // Si no hay búsqueda, traemos todo normal
+
+    // 3. Ejecutamos la orden en la base de datos
     const [products, total] = await this.productRepository.findAndCount({
       where,
       order: { id: "DESC" },
@@ -91,9 +104,9 @@ export class ProductsService {
   }
 
   // 3. LEER UNO: Validación de propiedad estricta
-  async findOne(id: number, businessId: string) {
+  async findOne(id: number, user: ActiveUser) {
     const product = await this.productRepository.findOne({
-      where: { id, businessId }
+      where: { id, businessId: user.businessId}
     });
 
     if (!product) {
@@ -102,23 +115,23 @@ export class ProductsService {
     return product;
   }
 
-  // 4. ACTUALIZAR: Fusión de datos (incluye metadata JSONB)
-  async update(id: number, updateProductDto: UpdateProductDto, businessId: string) {
-    const product = await this.findOne(id, businessId);
-
-    // Object.assign se encarga de actualizar los campos básicos y el JSONB de metadata
-    Object.assign(product, updateProductDto);
-
-    return await this.productRepository.save(product);
-  }
-
-  // 5. ELIMINAR: Soft Delete para integridad de datos
-  async remove(id: number, businessId: string) {
-    const product = await this.findOne(id, businessId);
-
-    product.isActive = false;
-    await this.productRepository.save(product);
-
-    return { message: `Producto #${id} desactivado del motor universal` };
-  }
+  // // 4. ACTUALIZAR: Fusión de datos (incluye metadata JSONB)
+  // async update(id: number, updateProductDto: UpdateProductDto, businessId: string) {
+  //   const product = await this.findOne(id, businessId);
+  //
+  //   // Object.assign se encarga de actualizar los campos básicos y el JSONB de metadata
+  //   Object.assign(product, updateProductDto);
+  //
+  //   return await this.productRepository.save(product);
+  // }
+  //
+  // // 5. ELIMINAR: Soft Delete para integridad de datos
+  // async remove(id: number, businessId: string) {
+  //   const product = await this.findOne(id, businessId);
+  //
+  //   product.isActive = false;
+  //   await this.productRepository.save(product);
+  //
+  //   return { message: `Producto #${id} desactivado del motor universal` };
+  // }
 }
