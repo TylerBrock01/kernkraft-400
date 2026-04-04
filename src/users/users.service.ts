@@ -76,13 +76,13 @@ export class UsersService {
       ]
       : baseConditions; // Si no hay búsqueda, traemos todo normal
 
-    const [products, total] = await this.userRepository.findAndCount({
+    const [users, total] = await this.userRepository.findAndCount({
       where,
       order: { id: "DESC" },
       take,
       skip
     });
-    return { products, total };
+    return { users, total };
   }
 
   // READ ONE: Verificación de propiedad (ID + BusinessId)
