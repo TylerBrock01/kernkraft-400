@@ -78,15 +78,15 @@ export class ProductsController {
     return this.productsService.findOne(+id, user);
   }
 
-  // @Roles(Role.ADMIN, Role.ALMACEN)
-  // @Patch(':id')
-  // update(
-  //   @Param('id', IdValidationPipe) id: string,
-  //   @Body() updateProductDto: UpdateProductDto,
-  //   @GetBusinessId() businessId: string
-  // ) {
-  //   return this.productsService.update(+id, updateProductDto, businessId);
-  // }
+  @Roles(Role.ADMIN, Role.ALMACEN)
+  @Patch(':id')
+  update(
+    @Param('id', IdValidationPipe) id: string,
+    @Body() updateProductDto: UpdateProductDto,
+    @GetUser() user: ActiveUser,
+  ) {
+    return this.productsService.update(+id, updateProductDto, user);
+  }
   //
   // @Roles(Role.ADMIN)
   // @Delete(':id')

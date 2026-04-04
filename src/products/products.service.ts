@@ -116,14 +116,15 @@ export class ProductsService {
   }
 
   // // 4. ACTUALIZAR: Fusión de datos (incluye metadata JSONB)
-  // async update(id: number, updateProductDto: UpdateProductDto, businessId: string) {
-  //   const product = await this.findOne(id, businessId);
-  //
-  //   // Object.assign se encarga de actualizar los campos básicos y el JSONB de metadata
-  //   Object.assign(product, updateProductDto);
-  //
-  //   return await this.productRepository.save(product);
-  // }
+  async update(id: number, updateProductDto: UpdateProductDto, user: ActiveUser) {
+    const product = await this.productRepository.findOne({
+      where: { id, businessId: user.businessId}
+    });
+    // Object.assign se encarga de actualizar los campos básicos y el JSONB de metadata
+    Object.assign(product, updateProductDto);
+
+    return await this.productRepository.save(product);
+  }
   //
   // // 5. ELIMINAR: Soft Delete para integridad de datos
   // async remove(id: number, businessId: string) {
