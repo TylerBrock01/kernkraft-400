@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Body, Param, UseGuards, Patch, BadRequestException } from '@nestjs/common';
 import { BusinessService } from './business.service';
 import { CreateBusinessDto } from './dto/create-business.dto';
-import { JwtAuthGuard } from '../jwt-auth/jwt-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/roles/roles';
 import { RolesGuard } from '../auth/guards/roles.guard';

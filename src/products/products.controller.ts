@@ -20,7 +20,7 @@ import { GetProductQueryDto } from './dto/get-product.dto';
 import { IdValidationPipe } from '../common/pipes/id-validation/id-validation.pipe';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UploadImageService } from '../upload-image/upload-image.service';
-import { JwtAuthGuard } from '../jwt-auth/jwt-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/roles/roles';
 import { RolesGuard } from '../auth/guards/roles.guard';

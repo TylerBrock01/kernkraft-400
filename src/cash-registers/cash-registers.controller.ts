@@ -2,7 +2,7 @@ import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { CashRegistersService } from './cash-registers.service';
 import { OpenRegisterDto } from './dto/open-register.dto';
 import { GetUser } from '../auth/decorators/get-user.decorator';
-import { JwtAuthGuard } from '../jwt-auth/jwt-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { User } from '../users/entities/user.entity';
 import { CloseRegisterDto } from './dto/close-register.dto';
 import { RolesGuard } from '../auth/guards/roles.guard';
