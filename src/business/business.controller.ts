@@ -9,6 +9,8 @@ import { UpdateBusinessDto } from './dto/update-business.dto';
 import { UpdateSubscriptionDto } from './dto/update-subscription.dto';
 
 @Controller('business')
+@Roles(Role.SUPER_ADMIN)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class BusinessController {
   constructor(private readonly businessService: BusinessService) {}
 
@@ -35,8 +37,6 @@ export class BusinessController {
 
   // 4. EDICIÓN: El dueño cambia su nombre, logo, etc.
   @Patch(':id')
-  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
-  @UseGuards(JwtAuthGuard, RolesGuard)
   update(
     @Param('id') id: string,
     @Body() updateBusinessDto: UpdateBusinessDto
@@ -46,8 +46,6 @@ export class BusinessController {
 
   // 5. EL KILLSWITCH (Ya lo tenías, ¡impecable!)
   @Patch(':id/status')
-  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
-  @UseGuards(JwtAuthGuard, RolesGuard)
   toggleBusinessStatus(
     @Param('id') id: string,
     @Body('isActive') isActive: boolean
@@ -58,8 +56,6 @@ export class BusinessController {
     return this.businessService.toggleStatus(id, isActive);
   }
   @Patch(':id/subscription')
-  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
-  @UseGuards(JwtAuthGuard, RolesGuard)
   updateSubscription(
     @Param('id') id: string, // Recuerda que el Business ID es un UUID string
     @Body() updateDto: UpdateSubscriptionDto
