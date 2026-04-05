@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, ParseIntPipe, Query } from '@nestjs/common';
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
@@ -13,6 +13,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RequirePlan } from '../auth/decorators/require-plan.decorator';
 import { SubscriptionPlan } from '../business/entities/business.entity';
 import { PlanGuard } from '../auth/guards/plan.guard';
+import { ActiveUser } from '../auth/classes/active-user.class';
 
 @Controller('customers')
 @Roles(Role.ADMIN, Role.VENDEDOR, Role.ALMACEN) // Todos pueden ver/crear clientes
@@ -26,9 +27,21 @@ export class CustomersController {
     return this.customersService.create(createCustomerDto, user.businessId);
   }
 
+  // Crea un dto llamado GetCustomerQueryDto que extienda de PaginationQueryDto
+// o simplemente usa los decoradores @Query() directos si prefieres ir rápido:
+
   @Get()
-  findAll(@GetUser() user: User) {
-    return this.customersService.findAll(user.businessId);
+  findAll(
+    @Query('search') search: string,
+    @Query('take') takeQuery: string,
+    @Query('skip') skipQuery: string,
+    @GetUser() user: ActiveUser
+  ) {
+    const take = takeQuery ? Number(takeQuery) : 10;
+    const skip = skipQuery ? Number(skipQuery) : 0;
+    const searchTerm = search || '';
+
+    return this.customersService.findAll(user, take, skip, searchTerm);
   }
 
   @Get(':id')

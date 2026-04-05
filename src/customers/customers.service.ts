@@ -1,9 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { FindOptionsWhere, ILike, Repository } from 'typeorm';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { Customer } from './entities/customer.entity';
+import { ActiveUser } from '../auth/classes/active-user.class';
 
 @Injectable()
 export class CustomersService {
@@ -20,11 +21,28 @@ export class CustomersService {
     return this.customerRepository.save(customer);
   }
 
-  findAll(businessId: string) {
-    return this.customerRepository.find({
-      where: { businessId },
+  async findAll(user: ActiveUser, take: number, skip: number, search?: string) {
+    const baseConditions = {
+      businessId: user.businessId,
+    };
+
+    // 🔍 Búsqueda inteligente: Busca por nombre o por teléfono
+    const where: FindOptionsWhere<Customer> | FindOptionsWhere<Customer>[] = search
+      ? [
+        { ...baseConditions, name: ILike(`%${search}%`) },
+        { ...baseConditions, phone: ILike(`%${search}%`) }
+      ]
+      : baseConditions;
+
+    const [customers, total] = await this.customerRepository.findAndCount({
+      where,
       order: { name: 'ASC' },
+      take,
+      skip
     });
+
+    // Retornamos un objeto estructurado para que el frontend no se pierda
+    return { customers, total };
   }
 
   async findOne(id: number, businessId: string) {
