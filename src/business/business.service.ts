@@ -35,7 +35,17 @@ export class BusinessService {
     }
   }
   async findAll() {
-    return await this.businessRepository.find({ where: { isActive: true } });
+    // 1. Desestructuramos la tupla mágica de TypeORM
+    const [businesses, total] = await this.businessRepository.findAndCount({
+      // Opcional pero recomendado: Ordenar para que los más nuevos salgan primero
+      order: { createdAt: 'DESC' }
+    });
+
+    // 2. Lo empaquetamos en un JSON estándar de la industria
+    return {
+      data: businesses,
+      total: total,
+    };
   }
 
   async findOne(id: string) {
