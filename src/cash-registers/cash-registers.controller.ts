@@ -12,12 +12,16 @@ import { BusinessActiveGuard } from '../auth/guards/business-active.guard';
 import { RequirePlan } from '../auth/decorators/require-plan.decorator';
 import { SubscriptionPlan } from '../business/entities/business.entity';
 import { PlanGuard } from '../auth/guards/plan.guard';
+import { InjectRepository } from '@nestjs/typeorm';
+import { CashRegister, RegisterStatus } from './entities/cash-register.entity';
+import { Repository } from 'typeorm';
 
 @Controller('cash-registers')
 @UseGuards(JwtAuthGuard, RolesGuard, BusinessActiveGuard,PlanGuard)
 @RequirePlan(SubscriptionPlan.STARTER)
 export class CashRegistersController {
-  constructor(private readonly cashRegistersService: CashRegistersService) {}
+  constructor(private readonly cashRegistersService: CashRegistersService,
+              @InjectRepository(CashRegister) private readonly cashRegisterRepository: Repository<CashRegister>,) {}
 
   @Roles(Role.ADMIN,Role.VENDEDOR)
   @Post('open')
@@ -38,5 +42,13 @@ export class CashRegistersController {
     @Query('status') status?: string // Parámetro opcional en la URL
   ) {
     return this.cashRegistersService.findAll(user, status);
+  }
+  // Agrégalo en tu controlador de CashRegisters
+  @Get('current')
+  async getCurrentRegister(@GetUser() user: User) {
+    const register = await this.cashRegisterRepository.findOne({
+      where: { userId: user.id, businessId: user.businessId, status: RegisterStatus.OPEN },
+    });
+    return register || null; // Devuelve los datos si está abierta, o null si está cerrada
   }
 }
