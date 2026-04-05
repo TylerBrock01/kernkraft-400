@@ -32,10 +32,13 @@ export class UsersController {
     @Body() createUserDto: CreateUserDto,
     @GetUser() admin: ActiveUser // <-- Cambiamos User por ActiveUser
   ) {
-    createUserDto.businessId = admin.businessId;
 
     if (createUserDto.role === Role.SUPER_ADMIN) {
       createUserDto.role = Role.VENDEDOR;
+    }
+
+    if ( admin.role !== Role.SUPER_ADMIN ) {
+      createUserDto.businessId = admin.businessId;
     }
 
     createUserDto.password = await bcrypt.hash(createUserDto.password, 10);
