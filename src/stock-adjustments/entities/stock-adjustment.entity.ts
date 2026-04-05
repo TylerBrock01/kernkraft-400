@@ -7,7 +7,8 @@ export enum AdjustmentReason {
   THEFT = 'THEFT',
   EXPIRATION = 'EXPIRATION',
   LOSS = 'LOSS',
-  INTERNAL_USE = 'INTERNAL_USE'
+  INTERNAL_USE = 'INTERNAL_USE',
+  OTHER = 'OTHER',
 }
 
 @Entity('stock_adjustments')
