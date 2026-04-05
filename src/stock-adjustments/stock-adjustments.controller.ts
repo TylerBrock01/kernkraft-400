@@ -11,6 +11,7 @@ import { User } from '../users/entities/user.entity';
 import { RequirePlan } from '../auth/decorators/require-plan.decorator';
 import { SubscriptionPlan } from '../business/entities/business.entity';
 import { PlanGuard } from '../auth/guards/plan.guard';
+import { ActiveUser } from '../auth/classes/active-user.class';
 
 @Controller('stock-adjustments')
 @Roles(Role.ADMIN, Role.ALMACEN)
@@ -22,9 +23,9 @@ export class StockAdjustmentsController {
   @Post()
   create(
     @Body() createDto: CreateStockAdjustmentDto,
-    @GetUser() user: User
+    @GetUser() user: ActiveUser
   ) {
-    return this.stockAdjustmentsService.create(createDto, user.businessId, user.id);
+    return this.stockAdjustmentsService.create(createDto, user);
   }
 
   @Get()

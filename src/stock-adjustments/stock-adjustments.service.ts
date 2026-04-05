@@ -4,6 +4,7 @@ import { Repository, DataSource } from 'typeorm';
 import { CreateStockAdjustmentDto } from './dto/create-stock-adjustment.dto';
 import { StockAdjustment } from './entities/stock-adjustment.entity';
 import { Product } from '../products/entities/product.entity';
+import { ActiveUser } from '../auth/classes/active-user.class';
 
 @Injectable()
 export class StockAdjustmentsService {
@@ -14,7 +15,7 @@ export class StockAdjustmentsService {
   ) {}
 
   // Nota la firma exacta: businessId es string, userId es number
-  async create(createDto: CreateStockAdjustmentDto, businessId: string, userId: number) {
+  async create(createDto: CreateStockAdjustmentDto, user: ActiveUser) {
     const queryRunner = this.dataSource.createQueryRunner();
 
     await queryRunner.connect();
@@ -22,7 +23,7 @@ export class StockAdjustmentsService {
 
     try {
       const product = await queryRunner.manager.findOne(Product, {
-        where: { id: createDto.productId, businessId: businessId },
+        where: { id: createDto.productId, businessId: user.businessId },
       });
 
       if (!product) {
@@ -39,8 +40,8 @@ export class StockAdjustmentsService {
       adjustment.quantity = createDto.quantity;
       adjustment.reason = createDto.reason;
       adjustment.notes = createDto.notes || null;
-      adjustment.businessId = businessId;
-      adjustment.createdBy = userId;
+      adjustment.businessId = user.businessId;
+      adjustment.createdBy = user.id;
 
       const savedAdjustment = await queryRunner.manager.save(adjustment);
 
