@@ -14,7 +14,6 @@ export class BusinessController {
 
   // 1. REGISTRO: Público o controlado (tú decides si cualquiera puede crear un negocio)
   @Post()
-  @Roles(Role.SUPER_ADMIN)
   create(@Body() createBusinessDto: CreateBusinessDto) {
     return this.businessService.create(createBusinessDto);
   }
