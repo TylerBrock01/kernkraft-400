@@ -1,5 +1,5 @@
 // src/users/dto/create-user.dto.ts
-import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
 import { Role } from '../../auth/roles/roles';
 
 export class CreateUserDto {
@@ -27,6 +27,9 @@ export class CreateUserDto {
   @IsOptional()
   @IsEnum(Role)
   role?: Role;
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 
   // EL REQUISITO INDUSTRIAL:
   @IsOptional()
