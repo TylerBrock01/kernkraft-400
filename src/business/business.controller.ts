@@ -9,23 +9,25 @@ import { UpdateBusinessDto } from './dto/update-business.dto';
 import { UpdateSubscriptionDto } from './dto/update-subscription.dto';
 
 @Controller('business')
-@Roles(Role.SUPER_ADMIN)
-@UseGuards(JwtAuthGuard, RolesGuard)
+
 export class BusinessController {
   constructor(private readonly businessService: BusinessService) {}
-
+  @Roles(Role.SUPER_ADMIN)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   // 1. REGISTRO: Público o controlado (tú decides si cualquiera puede crear un negocio)
   @Post()
   create(@Body() createBusinessDto: CreateBusinessDto) {
     return this.businessService.create(createBusinessDto);
   }
-
+  @Roles(Role.SUPER_ADMIN)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   // 2. AUDITORÍA GLOBAL: Solo el Dios del sistema ve todos los inquilinos
   @Get()
   findAll() {
     return this.businessService.findAll();
   }
-
+  @Roles(Role.SUPER_ADMIN)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   // 3. PERFIL: Ver mi propio negocio o auditoría de SuperAdmin
   @Get(':id')
   @UseGuards(JwtAuthGuard)
@@ -34,7 +36,8 @@ export class BusinessController {
     // a menos que sea SUPER_ADMIN
     return this.businessService.findOne(id);
   }
-
+  @Roles(Role.SUPER_ADMIN)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   // 4. EDICIÓN: El dueño cambia su nombre, logo, etc.
   @Patch(':id')
   update(
@@ -43,7 +46,8 @@ export class BusinessController {
   ) {
     return this.businessService.update(id, updateBusinessDto);
   }
-
+  @Roles(Role.SUPER_ADMIN)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   // 5. EL KILLSWITCH (Ya lo tenías, ¡impecable!)
   @Patch(':id/status')
   toggleBusinessStatus(
@@ -55,6 +59,8 @@ export class BusinessController {
     }
     return this.businessService.toggleStatus(id, isActive);
   }
+  @Roles(Role.SUPER_ADMIN)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Patch(':id/subscription')
   updateSubscription(
     @Param('id') id: string, // Recuerda que el Business ID es un UUID string
