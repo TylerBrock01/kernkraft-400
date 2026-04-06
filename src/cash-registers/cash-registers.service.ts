@@ -21,24 +21,29 @@ export class CashRegistersService {
   ) {}
 
   async openRegister(user: User, openDto: OpenRegisterDto) {
-    // 1. VALIDACIÓN DE SEGURIDAD: Evitar turnos duplicados
+    // 1. BLINDAJE DE NEGOCIO: Evitar múltiples cajas abiertas en el mismo local
     const existingRegister = await this.cashRegisterRepository.findOne({
       where: {
-        userId: user.id,
+        // 🚨 ELIMINAMOS EL userId DE LA BÚSQUEDA
         businessId: user.businessId,
         status: RegisterStatus.OPEN,
       },
+      // Opcional pero táctico: Traer al usuario para decirle quién la tiene abierta
+      relations: ['user']
     });
 
     if (existingRegister) {
-      throw new BadRequestException('Ya tienes un turno de caja abierto. Ciérralo antes de iniciar uno nuevo.');
+      // 🛡️ Mensaje de error a prueba de tontos
+      const ownerName = existingRegister.user?.name || 'otro usuario';
+      throw new BadRequestException(`El turno ya se encuentra abierto por ${ownerName}. Debe realizarse el corte de caja antes de iniciar uno nuevo.`);
     }
 
     // 2. CREACIÓN DEL TURNO (El "Fondo de Caja")
     const newRegister = this.cashRegisterRepository.create({
       businessId: user.businessId,
-      userId: user.id,
-      openingBalance: openDto.openingBalance,
+      userId: user.id, // Aquí sí guardamos quién la abrió para la auditoría
+      // 🛡️ Casteamos a Number por si el DTO dejó pasar un string desde el frontend
+      openingBalance: Number(openDto.openingBalance),
       status: RegisterStatus.OPEN,
       openedAt: new Date(),
     });
@@ -52,7 +57,6 @@ export class CashRegistersService {
       openedAt: newRegister.openedAt,
     };
   }
-
   async closeRegister(user: User, closeDto: CloseRegisterDto) {
     // 1. BUSCAR CAJA ABIERTA
     const register = await this.cashRegisterRepository.findOne({
