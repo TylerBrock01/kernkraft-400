@@ -68,25 +68,26 @@ export class CashRegistersService {
     }
 
     // 2. CALCULAR EFECTIVO REAL (BILLETES + DEPÓSITOS)
+    // 2. CALCULAR EFECTIVO REAL (BILLETES + DEPÓSITOS)
     const salesResult = await this.transactionRepository
       .createQueryBuilder('t')
-      .select("SUM(CASE WHEN t.paymentMethod = 'CASH' THEN t.total ELSE 0 END)", 'totalSales')
+      // 🛡️ CORRECCIÓN: Usamos snake_case para evitar bugs con getRawOne()
+      .select("SUM(CASE WHEN t.paymentMethod = 'CASH' THEN t.total ELSE 0 END)", 'total_sales')
       .where('t.userId = :userId', { userId: user.id })
       .andWhere('t.businessId = :businessId', { businessId: user.businessId })
       .andWhere('t.transactionDate >= :openedAt', { openedAt: register.openedAt })
       .getRawOne();
 
-
-    // ... tu código actual del salesResult (totalCashIn) ...
-    const totalCashIn = parseFloat(salesResult.totalCashIn || 0);
+    // 🛡️ CORRECCIÓN: Leemos exactamente la propiedad que declaramos en el SELECT
+    const totalCashIn = parseFloat(salesResult?.total_sales || 0);
 
     // ✨ 3. CALCULAR MOVIMIENTOS DE CAJA (GASTOS E INYECCIONES)
     const movementsResult = await this.cashMovementRepository
       .createQueryBuilder('cm')
       .select(`
-        SUM(CASE WHEN cm.type = 'IN' THEN cm.amount ELSE 0 END) as total_in,
-        SUM(CASE WHEN cm.type = 'OUT' THEN cm.amount ELSE 0 END) as total_out
-      `)
+      SUM(CASE WHEN cm.type = 'IN' THEN cm.amount ELSE 0 END) as total_in,
+      SUM(CASE WHEN cm.type = 'OUT' THEN cm.amount ELSE 0 END) as total_out
+    `)
       .where('cm.userId = :userId', { userId: user.id })
       .andWhere('cm.businessId = :businessId', { businessId: user.businessId })
       .andWhere('cm.date >= :openedAt', { openedAt: register.openedAt })
@@ -98,10 +99,8 @@ export class CashRegistersService {
     // 🧮 4. MATEMÁTICAS DEL ARQUEO (LA FÓRMULA MAESTRA)
     const openingBalance = parseFloat(register.openingBalance.toString());
 
-    // El expectedBalance ahora es: Fondo + Ventas + (Entradas Extra - Salidas/Devoluciones)
-    const expectedBalance = openingBalance +
-      parseFloat(salesResult.totalSales || 0) +
-      movementsIn - movementsOut;
+    // 🛡️ CORRECCIÓN: Ahora usamos nuestra variable limpia `totalCashIn` en lugar de volver a consultar el objeto
+    const expectedBalance = openingBalance + totalCashIn + movementsIn - movementsOut;
 
     const actualBalance = closeDto.actualBalance;
     const difference = actualBalance - expectedBalance;
