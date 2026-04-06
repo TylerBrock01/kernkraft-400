@@ -68,7 +68,6 @@ export class CashRegistersService {
     }
 
     // 2. CALCULAR EFECTIVO REAL (BILLETES + DEPÓSITOS)
-    // 2. CALCULAR EFECTIVO REAL (BILLETES + DEPÓSITOS)
     const salesResult = await this.transactionRepository
       .createQueryBuilder('t')
       // 🛡️ CORRECCIÓN: Usamos snake_case para evitar bugs con getRawOne()
