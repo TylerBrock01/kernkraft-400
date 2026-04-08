@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan } from 'typeorm';
+import { Repository, MoreThan, ILike } from 'typeorm';
 import { Product } from '../products/entities/product.entity';
 import { Business } from '../business/entities/business.entity';
 
@@ -14,8 +14,13 @@ export class CatalogService {
     private readonly productRepository: Repository<Product>,
   ) {}
 
-  async getStorefront(slug: string) {
-    // 1. BUSCAMOS EL NEGOCIO POR SU SLUG
+  async getStorefront(
+    slug: string,
+    page: number = 1,
+    limit: number = 12, // 12 es el número dorado para grids (múltiplo de 2, 3 y 4 columnas)
+    search?: string
+  ) {
+    // 1. BUSCAMOS EL NEGOCIO POR SU SLUG (Tenant Identification)
     const business = await this.businessRepository.findOne({
       where: { slug: slug, isActive: true },
     });
@@ -24,28 +29,46 @@ export class CatalogService {
       throw new NotFoundException(`La tienda '${slug}' no existe o se encuentra inactiva.`);
     }
 
-    // 2. EXTRAEMOS EL INVENTARIO PÚBLICO
-    const products = await this.productRepository.find({
-      where: {
-        businessId: business.id,
-        // 🛡️ CTO Trick: Solo mostramos lo que realmente se puede vender/rentar.
-        // Si el stock llega a 0, desaparece mágicamente del catálogo público.
-        stock: MoreThan(0),
-      },
-      // 👁️ Solo exponemos los datos seguros (no mostramos IDs internos de proveedor, etc.)
-      select: ['id', 'name', 'price', 'stock', 'slug'],
-      order: { name: 'ASC' } // Ordenado alfabéticamente para que se vea pro
+    const skip = (page - 1) * limit;
+
+    // 2. CONSTRUCCIÓN DINÁMICA DE LA CONSULTA
+    const whereCondition: any = {
+      businessId: business.id,
+      // 🛡️ CTO Trick: Si el stock llega a 0, desaparece mágicamente.
+      stock: MoreThan(0),
+    };
+
+    // 🔍 Inyección del Buscador
+    if (search) {
+      // Usamos ILike para ignorar mayúsculas/minúsculas (ej: "torta" encuentra "Torta")
+      whereCondition.name = ILike(`%${search}%`);
+    }
+
+    // 3. EXTRACCIÓN DEL INVENTARIO PÚBLICO (Paginado)
+    const [products, total] = await this.productRepository.findAndCount({
+      where: whereCondition,
+      select: ['id', 'name', 'price', 'stock', 'slug', 'description'], // Solo datos seguros
+      order: { name: 'ASC' },
+      take: limit,
+      skip: skip,
     });
 
-    // 3. EMPAQUETAMOS LA VITRINA PARA EL FRONTEND
+    // 4. EMPAQUETAMOS LA VITRINA PARA EL FRONTEND
     return {
       store: {
         name: business.name,
         type: business.type,
         contact: business.config || {},
       },
-      inventoryCount: products.length,
-      catalog: products,
+      catalog: {
+        data: products,
+        meta: {
+          total,
+          page: Number(page),
+          lastPage: Math.ceil(total / limit),
+          hasSearch: !!search // Bandera útil para que el Frontend sepa si está viendo resultados de búsqueda
+        }
+      }
     };
   }
 }
