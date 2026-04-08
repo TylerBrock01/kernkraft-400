@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CashRegister, RegisterStatus } from './entities/cash-register.entity';
@@ -7,6 +7,8 @@ import { User } from '../users/entities/user.entity';
 import { Transaction } from '../transactions/entities/transaction.entity';
 import { CloseRegisterDto } from './dto/close-register.dto';
 import { CashMovement } from '../cash-movements/entities/cash-movement.entity';
+import { ActiveUser } from '../auth/classes/active-user.class';
+import { PLAN_LIMITS } from '../business/config/plan-limits.config';
 
 @Injectable()
 export class CashRegistersService {
@@ -20,30 +22,57 @@ export class CashRegistersService {
 
   ) {}
 
-  async openRegister(user: User, openDto: OpenRegisterDto) {
-    // 1. BLINDAJE DE NEGOCIO: Evitar múltiples cajas abiertas en el mismo local
-    const existingRegister = await this.cashRegisterRepository.findOne({
-      where: {
-        // 🚨 ELIMINAMOS EL userId DE LA BÚSQUEDA
-        businessId: user.businessId,
-        status: RegisterStatus.OPEN,
-      },
-      // Opcional pero táctico: Traer al usuario para decirle quién la tiene abierta
-      relations: ['user']
-    });
+  async openRegister(user: ActiveUser, openDto: OpenRegisterDto) {
+    const businessId = user.businessId;
 
-    if (existingRegister) {
-      // 🛡️ Mensaje de error a prueba de tontos
-      const ownerName = existingRegister.user?.name || 'otro usuario';
-      throw new BadRequestException(`El turno ya se encuentra abierto por ${ownerName}. Debe realizarse el corte de caja antes de iniciar uno nuevo.`);
+    if (!user?.id) {
+      throw new BadRequestException('Error crítico: El vendedor no está identificado en el sistema.');
     }
 
-    // 2. CREACIÓN DEL TURNO (El "Fondo de Caja")
+    const maxCashRegisters = PLAN_LIMITS[user.plan].maxCashRegisters;
+
+    // 1. BARRERA DE PLAN: ¿El plan incluye el módulo POS?
+    if (maxCashRegisters === 0) {
+      throw new ForbiddenException(
+        'El módulo de Punto de Venta no está incluido en tu plan LITE. Haz upgrade a AERO o ZENITH para comenzar a cobrar.'
+      );
+    }
+
+    // 2. AUDITORÍA DE CAJAS: Traemos TODAS las cajas abiertas actualmente en la empresa
+    const openRegisters = await this.cashRegisterRepository.find({
+      where: {
+        businessId: businessId,
+        status: RegisterStatus.OPEN,
+      },
+      relations: ['user'] // Extraemos a los usuarios para el reporte de error
+    });
+
+    // 3. REGLA OPERATIVA: Un mismo cajero no puede abrir dos cajas simultáneas
+    const userAlreadyHasOpenRegister = openRegisters.find(reg => reg.userId === user.id);
+    if (userAlreadyHasOpenRegister) {
+      throw new BadRequestException(
+        'Ya tienes un turno activo en este momento. Debes realizar tu corte de caja antes de abrir una nueva.'
+      );
+    }
+
+    // 4. BARRERA DE MONETIZACIÓN (CAZA): ¿Se alcanzó el límite del plan?
+    if (openRegisters.length >= maxCashRegisters) {
+      // 🛡️ Extraemos los nombres para decirle al dueño exactamente quién está ocupando las cajas
+      const activeOperators = openRegisters
+        .map(reg => reg.user?.name || reg.user?.email || 'Usuario')
+        .join(', ');
+
+      throw new ForbiddenException(
+        `Límite operativo alcanzado. Tu plan actual permite un máximo de ${maxCashRegisters} caja(s) abierta(s) en simultáneo. Actualmente operadas por: ${activeOperators}.`
+      );
+    }
+
+    // 5. CREACIÓN DEL TURNO (El "Fondo de Caja")
     const newRegister = this.cashRegisterRepository.create({
-      businessId: user.businessId,
-      userId: user.id, // Aquí sí guardamos quién la abrió para la auditoría
-      // 🛡️ Casteamos a Number por si el DTO dejó pasar un string desde el frontend
+      businessId: businessId,
+      userId: user.id, // Auditoría: Quién la abrió
       openingBalance: Number(openDto.openingBalance),
+      expectedBalance: Number(openDto.openingBalance), // 💡 Crucial: Lo que se espera inicia igual al fondo inicial
       status: RegisterStatus.OPEN,
       openedAt: new Date(),
     });
@@ -51,12 +80,13 @@ export class CashRegistersService {
     await this.cashRegisterRepository.save(newRegister);
 
     return {
-      message: 'Turno abierto exitosamente.',
+      message: 'Bóveda inicializada. Turno operativo activado.',
       registerId: newRegister.id,
       openingBalance: newRegister.openingBalance,
       openedAt: newRegister.openedAt,
     };
   }
+
   async closeRegister(user: User, closeDto: CloseRegisterDto) {
     // 1. BUSCAR CAJA ABIERTA
     const register = await this.cashRegisterRepository.findOne({

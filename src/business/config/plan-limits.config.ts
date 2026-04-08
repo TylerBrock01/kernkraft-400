@@ -11,6 +11,7 @@ export const PLAN_PRICES = {
 export const PLAN_LIMITS = {
   [SubscriptionPlan.LITE]: {
     maxUsers: 1,
+    maxCashRegisters: 0,
     maxProducts: 50,
     maxTransactions: 0,
   },

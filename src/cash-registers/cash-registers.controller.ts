@@ -15,6 +15,7 @@ import { PlanGuard } from '../auth/guards/plan.guard';
 import { InjectRepository } from '@nestjs/typeorm';
 import { CashRegister, RegisterStatus } from './entities/cash-register.entity';
 import { Repository } from 'typeorm';
+import { ActiveUser } from '../auth/classes/active-user.class';
 
 @Controller('cash-registers')
 @UseGuards(JwtAuthGuard, RolesGuard, BusinessActiveGuard,PlanGuard)
@@ -25,7 +26,7 @@ export class CashRegistersController {
 
   @Roles(Role.ADMIN,Role.VENDEDOR)
   @Post('open')
-  async open(@GetUser() user: User, @Body() openDto: OpenRegisterDto) {
+  async open(@GetUser() user: ActiveUser, @Body() openDto: OpenRegisterDto) {
     return this.cashRegistersService.openRegister(user, openDto);
   }
 
