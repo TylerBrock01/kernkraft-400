@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Between, LessThanOrEqual, MoreThanOrEqual, Repository } from 'typeorm';
 import { CashMovement } from './entities/cash-movement.entity';
 import { CreateCashMovementDto } from './dto/create-cash-movement.dto';
 import { User } from '../users/entities/user.entity';
@@ -65,27 +65,49 @@ export class CashMovementsService {
   // ... debajo de getMyShiftMovements ...
 
   // 🕵️‍♂️ Endpoint exclusivo para el dueño (Auditoría)
-  async findAll(user: User) {
-    return await this.cashMovementRepository.find({
-      where: { businessId: user.businessId },
-      relations: ['user'], // Traemos los datos del empleado que hizo el movimiento
+  async findAll(
+    user: User,
+    page: number = 1,
+    limit: number = 10,
+    startDate?: string,
+    endDate?: string
+  ) {
+    const skip = (page - 1) * limit;
+    const where: any = { businessId: user.businessId };
+
+    // 📅 Filtro de Fechas Pro
+    if (startDate && endDate) {
+      where.date = Between(new Date(startDate), new Date(endDate));
+    } else if (startDate) {
+      where.date = MoreThanOrEqual(new Date(startDate));
+    } else if (endDate) {
+      where.date = LessThanOrEqual(new Date(endDate));
+    }
+
+    // 🚀 Consulta con Paginación
+    const [data, total] = await this.cashMovementRepository.findAndCount({
+      where,
+      relations: ['user'],
       select: {
         id: true,
         amount: true,
         type: true,
         reason: true,
         date: true,
-        // Solo enviamos información segura del usuario, nada de passwords
-        user: {
-          id: true,
-          email: true,
-          // Si tienes campo de nombre en tu User entity, agrégalo aquí, ej:
-          // fullName: true
-        }
+        user: { id: true, email: true }
       },
-      order: {
-        date: 'DESC' // Los más recientes primero
-      }
+      order: { date: 'DESC' },
+      take: limit,
+      skip: skip,
     });
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        lastPage: Math.ceil(total / limit),
+      }
+    };
   }
 }

@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Body, UseGuards, Query } from '@nestjs/common';
 import { CashMovementsService } from './cash-movements.service';
 import { CreateCashMovementDto } from './dto/create-cash-movement.dto';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -31,9 +31,15 @@ export class CashMovementsController {
   }
 
   // 🛡️ Solo el Administrador puede ver el historial completo de la empresa
-  @Roles(Role.ADMIN)
   @Get()
-  findAll(@GetUser() user: User) {
-    return this.cashMovementsService.findAll(user);
+  @Roles(Role.ADMIN)
+  findAll(
+    @GetUser() user: User,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.cashMovementsService.findAll(user, page, limit, startDate, endDate);
   }
 }
