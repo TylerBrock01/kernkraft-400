@@ -18,7 +18,7 @@ export const PLAN_LIMITS = {
   [SubscriptionPlan.STARTER]: {
     maxUsers: 2,
     maxCashRegisters: 1,
-    maxProducts: 200,
+    maxProducts: 100,
     maxTransactions: 300,
   },
   [SubscriptionPlan.PRO]: {
@@ -34,9 +34,11 @@ export const PLAN_LIMITS = {
     maxTransactions: -1,
   },
   [SubscriptionPlan.ZENITH]: {
-    maxUsers: 30,
-    maxCashRegisters: 15,
-    maxProducts: 300,
-    maxTransactions: 900,
+    maxUsers: 15,//passed
+    maxCashRegisters: 15,//passed
+    maxProducts: 15,//passed
+    maxTransactions: 300,//passed
+    maxBranch: 3,
+
   },
 };
