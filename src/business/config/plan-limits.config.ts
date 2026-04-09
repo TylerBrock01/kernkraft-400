@@ -34,9 +34,9 @@ export const PLAN_LIMITS = {
     maxTransactions: -1,
   },
   [SubscriptionPlan.ZENITH]: {
-    maxUsers: -1,
-    maxCashRegisters: -1,
-    maxProducts: -1,
-    maxTransactions: -1,
+    maxUsers: 30,
+    maxCashRegisters: 15,
+    maxProducts: 300,
+    maxTransactions: 900,
   },
 };
