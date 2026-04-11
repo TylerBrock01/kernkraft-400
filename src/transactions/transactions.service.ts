@@ -460,6 +460,7 @@ export class TransactionsService {
         }
       }
       // 4. SELLAR EL CONTRATO
+      transaction.status = TransactionStatus.COMPLETED;
       transaction.rentalStatus = RentalStatus.RETURNED;
       await manager.save(transaction);
 
