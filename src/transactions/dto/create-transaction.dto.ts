@@ -23,12 +23,6 @@ export class TransactionContentsDto {
   @IsNotEmpty({ message: 'La cantidad no puede estar vacía' })
   @IsInt({ message: 'Cantidad no válida' })
   quantity: number;
-
-  @IsOptional()
-  @IsDateString({}, {
-    message: 'La fecha de retorno debe ser una fecha ISO válida (ej. 2026-04-05T10:00:00Z)'
-  })
-  returnDate?: string;
 }
 
 export class CreateTransactionDto {
@@ -36,7 +30,7 @@ export class CreateTransactionDto {
   // --- CAMPOS ORIGINALES ---
   @IsOptional()
   @IsString()
-  coupon?: string;
+  coupon: string;
 
   @IsOptional()
   @IsEnum(PaymentMethod)
@@ -58,6 +52,12 @@ export class CreateTransactionDto {
     message: 'El tipo de transacción debe ser SALE (Venta) o RENTAL (Renta)'
   })
   type?: TransactionType;
+
+  @IsOptional()
+  @IsDateString({}, {
+    message: 'La fecha de retorno debe ser una fecha ISO válida (ej. 2026-04-05T10:00:00Z)'
+  })
+  returnDate?: string;
 
   @IsOptional()
   @IsEnum(TransactionStatus)

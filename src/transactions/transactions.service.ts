@@ -181,7 +181,8 @@ export class TransactionsService {
         total: total,
         coupon: couponName,
         couponDiscount: couponDiscount,
-        paymentMethod: createTransactionDto.paymentMethod,
+        status: createTransactionDto.status,
+        paymentMethod: createTransactionDto.paymentMethod || PaymentMethod.CASH,
         rentalStatus: createTransactionDto.type === TransactionType.RENTAL
           ? RentalStatus.OUT
           : null
