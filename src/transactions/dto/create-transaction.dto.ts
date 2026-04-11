@@ -13,7 +13,7 @@ import {
   Min
 } from "class-validator";
 // 🛡️ IMPORTANTE: Asegúrate de importar el Enum desde tu entidad
-import { PaymentMethod, TransactionType } from "../entities/transaction.entity";
+import { PaymentMethod, TransactionStatus, TransactionType } from "../entities/transaction.entity";
 
 export class TransactionContentsDto {
   @IsNotEmpty({ message: 'El ID del producto no puede estar vacío' })
@@ -23,6 +23,12 @@ export class TransactionContentsDto {
   @IsNotEmpty({ message: 'La cantidad no puede estar vacía' })
   @IsInt({ message: 'Cantidad no válida' })
   quantity: number;
+
+  @IsOptional()
+  @IsDateString({}, {
+    message: 'La fecha de retorno debe ser una fecha ISO válida (ej. 2026-04-05T10:00:00Z)'
+  })
+  returnDate?: string;
 }
 
 export class CreateTransactionDto {
@@ -30,7 +36,7 @@ export class CreateTransactionDto {
   // --- CAMPOS ORIGINALES ---
   @IsOptional()
   @IsString()
-  coupon: string;
+  coupon?: string;
 
   @IsOptional()
   @IsEnum(PaymentMethod)
@@ -54,10 +60,8 @@ export class CreateTransactionDto {
   type?: TransactionType;
 
   @IsOptional()
-  @IsDateString({}, {
-    message: 'La fecha de retorno debe ser una fecha ISO válida (ej. 2026-04-05T10:00:00Z)'
-  })
-  returnDate?: string;
+  @IsEnum(TransactionStatus)
+  status?: TransactionStatus;
 
   @IsOptional()
   @IsNumber({}, { message: 'El monto del depósito debe ser un número' })

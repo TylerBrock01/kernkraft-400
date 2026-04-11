@@ -18,6 +18,7 @@ export enum TransactionStatus {
   COMPLETED = 'COMPLETED',
   CANCELLED = 'CANCELLED',
   REFUNDED = 'REFUNDED', // Devolución parcial o total
+  PENDING = 'PENDING',
 }
 
 export enum PaymentMethod {

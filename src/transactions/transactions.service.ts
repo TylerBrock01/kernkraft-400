@@ -48,7 +48,7 @@ export class TransactionsService {
     }
 
     // Si no es ilimitado, contamos las ventas del mes en curso
-    if (maxTransactions !== -1) {
+    if (maxTransactions <= 500) {
       const date = new Date();
       const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
       const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59);
@@ -104,8 +104,16 @@ export class TransactionsService {
 
     // ⛺ VALIDACIÓN PREVIA DE RENTA
     const isRental = createTransactionDto.type === TransactionType.RENTAL;
-    if (isRental && !createTransactionDto.returnDate) {
-      throw new BadRequestException('Operación denegada: Las rentas exigen una fecha de devolución (returnDate).');
+
+    if (isRental){
+      if (!createTransactionDto.depositAmount){
+        throw new BadRequestException('Las rentas exigen deposito (depositAmount).');
+      }
+
+      if (!createTransactionDto.returnDate) {
+        throw new BadRequestException(`Las rentas exigen una fecha de devolución valida ${createTransactionDto.returnDate}.`);
+      }
+      createTransactionDto.status = TransactionStatus.PENDING;
     }
 
     return await this.transactionRepository.manager.transaction(async (manager) => {
@@ -118,9 +126,10 @@ export class TransactionsService {
           where: { id: item.productId, businessId: businessId }
         });
 
-        if (!product) throw new NotFoundException(`Producto #${item.productId} no disponible`);
-        if (item.quantity > product.stock) throw new BadRequestException(`Stock insuficiente para: ${product.name}`);
-
+        if (!product || item.quantity > product.stock){
+          if (!product) throw new NotFoundException(`Producto #${item.productId} no disponible`);
+          if (item.quantity > product.stock) throw new BadRequestException(`Stock insuficiente para: ${product.name}`);
+        }
         total += Number(product.price) * item.quantity;
         itemsParaProcesar.push({ product, quantity: item.quantity });
       }
@@ -172,7 +181,7 @@ export class TransactionsService {
         total: total,
         coupon: couponName,
         couponDiscount: couponDiscount,
-        paymentMethod: createTransactionDto.paymentMethod || PaymentMethod.CASH,
+        paymentMethod: createTransactionDto.paymentMethod,
         rentalStatus: createTransactionDto.type === TransactionType.RENTAL
           ? RentalStatus.OUT
           : null
@@ -221,6 +230,7 @@ export class TransactionsService {
       };
     });
   }
+
   async findAll(user: User, transactionDate?: string, take: number = 10, skip: number = 0) {
 
     // 1. EL CANDADO BASE (Multi-tenancy)
