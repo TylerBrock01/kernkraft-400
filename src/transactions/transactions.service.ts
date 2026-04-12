@@ -3,7 +3,7 @@ import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { PaymentMethod, RentalStatus, Transaction, TransactionContent, TransactionStatus, TransactionType } from './entities/transaction.entity';
-import { Between, FindManyOptions, FindOptionsWhere, In, Repository } from 'typeorm';
+import { Between, Brackets, FindManyOptions, FindOptionsWhere, In, Repository } from 'typeorm';
 import { Product } from '../products/entities/product.entity';
 import { endOfDay, isValid, parseISO, startOfDay } from 'date-fns';
 import { CouponsService } from '../coupons/coupons.service';
@@ -572,69 +572,72 @@ export class TransactionsService {
   }
 
   async getDailyRadar(user: ActiveUser, targetDate: string) {
-    const dateToSearch = targetDate ? new Date(targetDate) : new Date();
+    // 1. Normalización total de la fecha (Evita desfases horarios)
+    const dateToSearch = targetDate ? parseISO(targetDate) : new Date();
     const start = startOfDay(dateToSearch);
     const end = endOfDay(dateToSearch);
 
-    // 1. 📡 ESCANEO DEL RADAR: Buscamos todo lo programado para este día
-    const operations = await this.transactionRepository.find({
-      where: {
-        businessId: user.businessId,
-        returnDate: Between(start, end),
-        // 🛡️ Filtro Táctico: Solo traemos lo que NO se ha completado logísticamente.
-        // Si ya lo devolvieron (RETURNED) o cancelaron, no estorba en el radar de hoy.
-        // rentalStatus: In([RentalStatus.OUT, RentalStatus.LATE,null]),
-      },
-      // Traemos las relaciones clave para el Dashboard
-      relations: ['customer', 'contents', 'contents.product'],
-      order: {
-        returnDate: 'ASC' // Orden cronológico (lo que urge más temprano, arriba)
-      }
-    });
+    const query = this.transactionRepository.createQueryBuilder('tx')
+      .leftJoinAndSelect('tx.customer', 'customer')
+      .leftJoinAndSelect('tx.contents', 'contents')
+      .leftJoinAndSelect('contents.product', 'product')
+      .where('tx.businessId = :businessId', { businessId: user.businessId })
+      .andWhere('tx.returnDate BETWEEN :start AND :end', { start, end })
+      // Solo transacciones vivas (no canceladas)
+      .andWhere('tx.status IN (:...validStatuses)', {
+        validStatuses: [TransactionStatus.COMPLETED, TransactionStatus.PENDING]
+      });
 
-    // 2. 🧠 CLASIFICACIÓN UNIVERSAL (El verdadero poder del MCU)
-    // Aquí el backend le hace el trabajo sucio al frontend separando las misiones.
+    // 🛡️ REGLA DE ORO UNIVERSAL:
+    // Filtramos los RENTAL para que no aparezcan si ya fueron devueltos,
+    // pero dejamos que las SALE pasen libremente porque su rentalStatus es NULL.
+    query.andWhere(new Brackets(qb => {
+      qb.where('tx.type = :sale', { sale: TransactionType.SALE })
+        .orWhere('(tx.type = :rental AND tx.rentalStatus != :returned)', {
+          rental: TransactionType.RENTAL,
+          returned: RentalStatus.RETURNED
+        });
+    }));
 
+    const operations = await query.orderBy('tx.returnDate', 'ASC').getMany();
+
+    // 🧠 Clasificación para el HUD
     const returns = operations.filter(op => op.type === TransactionType.RENTAL);
     const pickups = operations.filter(op => op.type === TransactionType.SALE);
 
-    // Matemáticas de riesgo: ¿Cuánto dinero tenemos que devolver hoy en depósitos?
-    const totalDepositRisk = returns.reduce((sum, op) => sum + Number(op.depositAmount), 0);
-
-    // 3. EMPAQUETADO PARA EL FRONTEND
     return {
       radarDate: dateToSearch.toISOString().split('T')[0],
       metrics: {
         totalOperations: operations.length,
         pendingReturns: returns.length,
         pendingPickups: pickups.length,
-        depositRisk: totalDepositRisk, // El cajero debe saber que necesita este efectivo listo
+        depositRisk: returns.reduce((sum, op) => sum + Number(op.depositAmount || 0), 0),
       },
       missions: {
-        returns: returns.map(this.mapOperationData),
-        pickups: pickups.map(this.mapOperationData),
+        returns: returns.map(tx => this.mapOperationData(tx)),
+        pickups: pickups.map(tx => this.mapOperationData(tx)),
       }
     };
   }
 
-  // 🛠️ DTO Interno: Limpiamos la basura, enviamos solo lo táctico
+  // Mapeo limpio para no enviar la base de datos entera al frontend
   private mapOperationData(tx: Transaction) {
     return {
-      id: tx.id,
-      uuid: tx.uuid,
+      id: tx.uuid,
       type: tx.type,
-      scheduledTime: tx.returnDate,
-      rentalStatus: tx.rentalStatus|| null,
-      depositAmount: Number(tx.depositAmount),
+      returnDate: tx.returnDate,
+      status: tx.status,
+      rentalStatus: tx.rentalStatus,
+      depositAmount: Number(tx.depositAmount || 0),
+      total: Number(tx.total || 0),
       customer: tx.customer ? {
-        id: tx.customer.id,
-        name: tx.customer.name, // Asegúrate de tener name en tu entity Customer
-        phone: tx.customer.phone // Vital para llamarles si no llegan
+        name: tx.customer.name,
+        phone: tx.customer.phone
       } : null,
-      items: tx.contents.map(c => ({
-        name: c.product.name,
-        quantity: c.quantity,
-      }))
+      contents: tx.contents?.map(c => ({
+        product: { name: c.product?.name },
+        quantity: c.quantity
+      })) || []
     };
   }
 }
