@@ -570,4 +570,70 @@ export class TransactionsService {
       };
     });
   }
+
+  async getDailyRadar(user: ActiveUser, targetDate: string) {
+    const dateToSearch = targetDate ? new Date(targetDate) : new Date();
+    const start = startOfDay(dateToSearch);
+    const end = endOfDay(dateToSearch);
+
+    // 1. 📡 ESCANEO DEL RADAR: Buscamos todo lo programado para este día
+    const operations = await this.transactionRepository.find({
+      where: {
+        businessId: user.businessId,
+        returnDate: Between(start, end),
+        // 🛡️ Filtro Táctico: Solo traemos lo que NO se ha completado logísticamente.
+        // Si ya lo devolvieron (RETURNED) o cancelaron, no estorba en el radar de hoy.
+        rentalStatus: In([RentalStatus.OUT, RentalStatus.LATE]),
+      },
+      // Traemos las relaciones clave para el Dashboard
+      relations: ['customer', 'contents', 'contents.product'],
+      order: {
+        returnDate: 'ASC' // Orden cronológico (lo que urge más temprano, arriba)
+      }
+    });
+
+    // 2. 🧠 CLASIFICACIÓN UNIVERSAL (El verdadero poder del MCU)
+    // Aquí el backend le hace el trabajo sucio al frontend separando las misiones.
+
+    const returns = operations.filter(op => op.type === TransactionType.RENTAL);
+    const pickups = operations.filter(op => op.type === TransactionType.SALE);
+
+    // Matemáticas de riesgo: ¿Cuánto dinero tenemos que devolver hoy en depósitos?
+    const totalDepositRisk = returns.reduce((sum, op) => sum + Number(op.depositAmount), 0);
+
+    // 3. EMPAQUETADO PARA EL FRONTEND
+    return {
+      radarDate: dateToSearch.toISOString().split('T')[0],
+      metrics: {
+        totalOperations: operations.length,
+        pendingReturns: returns.length,
+        pendingPickups: pickups.length,
+        depositRisk: totalDepositRisk, // El cajero debe saber que necesita este efectivo listo
+      },
+      missions: {
+        returns: returns.map(this.mapOperationData),
+        pickups: pickups.map(this.mapOperationData),
+      }
+    };
+  }
+
+  // 🛠️ DTO Interno: Limpiamos la basura, enviamos solo lo táctico
+  private mapOperationData(tx: Transaction) {
+    return {
+      id: tx.uuid,
+      type: tx.type,
+      scheduledTime: tx.returnDate,
+      rentalStatus: tx.rentalStatus,
+      depositAmount: Number(tx.depositAmount),
+      customer: tx.customer ? {
+        id: tx.customer.id,
+        name: tx.customer.name, // Asegúrate de tener name en tu entity Customer
+        phone: tx.customer.phone // Vital para llamarles si no llegan
+      } : null,
+      items: tx.contents.map(c => ({
+        name: c.product.name,
+        quantity: c.quantity,
+      }))
+    };
+  }
 }
