@@ -583,7 +583,7 @@ export class TransactionsService {
         returnDate: Between(start, end),
         // 🛡️ Filtro Táctico: Solo traemos lo que NO se ha completado logísticamente.
         // Si ya lo devolvieron (RETURNED) o cancelaron, no estorba en el radar de hoy.
-        rentalStatus: In([RentalStatus.OUT, RentalStatus.LATE]),
+        // rentalStatus: In([RentalStatus.OUT, RentalStatus.LATE,null]),
       },
       // Traemos las relaciones clave para el Dashboard
       relations: ['customer', 'contents', 'contents.product'],
@@ -620,10 +620,11 @@ export class TransactionsService {
   // 🛠️ DTO Interno: Limpiamos la basura, enviamos solo lo táctico
   private mapOperationData(tx: Transaction) {
     return {
-      id: tx.uuid,
+      id: tx.id,
+      uuid: tx.uuid,
       type: tx.type,
       scheduledTime: tx.returnDate,
-      rentalStatus: tx.rentalStatus,
+      rentalStatus: tx.rentalStatus|| null,
       depositAmount: Number(tx.depositAmount),
       customer: tx.customer ? {
         id: tx.customer.id,
