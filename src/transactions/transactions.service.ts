@@ -623,7 +623,8 @@ export class TransactionsService {
   // Mapeo limpio para no enviar la base de datos entera al frontend
   private mapOperationData(tx: Transaction) {
     return {
-      id: tx.uuid,
+      id: tx.id,
+      uuid: tx.uuid,
       type: tx.type,
       returnDate: tx.returnDate,
       status: tx.status,
