@@ -116,6 +116,16 @@ export class TransactionsService {
       createTransactionDto.status = TransactionStatus.PENDING;
     }
 
+    // VALIDACIÓN PREVIA DE PickUp
+    const isSalePickUp: boolean = createTransactionDto.type === TransactionType.SALE && !!createTransactionDto.returnDate;
+
+    if (isSalePickUp) {
+      // if (createTransactionDto.customerId){
+      //   throw new BadRequestException('La preventa exigen un cliente valido.');
+      // }
+      createTransactionDto.status = TransactionStatus.PAID; //Pagado pero no entregado
+    }
+
     return await this.transactionRepository.manager.transaction(async (manager) => {
       let total = 0;
       const itemsParaProcesar = [];
@@ -185,7 +195,9 @@ export class TransactionsService {
         paymentMethod: createTransactionDto.paymentMethod || PaymentMethod.CASH,
         rentalStatus: createTransactionDto.type === TransactionType.RENTAL
           ? RentalStatus.OUT
-          : null
+          : isSalePickUp?
+            RentalStatus.UNFULFILLED
+            : null,
       });
 
       const savedTransaction = await manager.save(transaction);

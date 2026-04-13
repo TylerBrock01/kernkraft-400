@@ -13,7 +13,7 @@ import {
   Min
 } from "class-validator";
 // 🛡️ IMPORTANTE: Asegúrate de importar el Enum desde tu entidad
-import { PaymentMethod, TransactionStatus, TransactionType } from "../entities/transaction.entity";
+import { PaymentMethod, RentalStatus, TransactionStatus, TransactionType } from "../entities/transaction.entity";
 
 export class TransactionContentsDto {
   @IsNotEmpty({ message: 'El ID del producto no puede estar vacío' })
@@ -52,6 +52,12 @@ export class CreateTransactionDto {
     message: 'El tipo de transacción debe ser SALE (Venta) o RENTAL (Renta)'
   })
   type?: TransactionType;
+
+  @IsOptional()
+  @IsEnum(RentalStatus, {
+    message: 'El estado de la renta debe ser UNFULFILLED (Pendiente), FULFILLED (Entregado) o RETURNED (Devuelto)'
+  })
+  rentalStatus?: RentalStatus;
 
   @IsOptional()
   @IsDateString({}, {

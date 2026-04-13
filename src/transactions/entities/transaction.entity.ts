@@ -19,6 +19,7 @@ export enum RentalStatus {
 
 export enum TransactionStatus {
   COMPLETED = 'COMPLETED',
+  PAID = 'PAID',
   PARTIAL = 'PARTIAL', //abonos
   CANCELLED = 'CANCELLED',
   REFUNDED = 'REFUNDED', // Devolución parcial o total
