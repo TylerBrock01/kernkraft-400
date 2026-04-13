@@ -47,6 +47,7 @@ export class TransactionsController {
     return this.transactionsService.findAll(user,transactionDate, take, skip);
   }
   @Get('returnDate')
+  @Roles(Role.ADMIN, Role.VENDEDOR, Role.ALMACEN)
   getDailyRadar(
     @GetUser() user: ActiveUser,
     @Query('date') targetDate?: string, // Ej: ?date=2026-04-12
