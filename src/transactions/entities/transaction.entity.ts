@@ -9,6 +9,9 @@ export enum TransactionType {
 }
 
 export enum RentalStatus {
+  UNFULFILLED = 'UNFULFILLED', // El producto sigue en nuestra bodega/vitrina (Es un Pick-Up).
+  FULFILLED = 'FULFILLED',     // El cliente ya vino por él y se lo llevó.
+
   OUT = 'OUT',           // El equipo está con el cliente
   RETURNED = 'RETURNED', // El equipo ya regresó al almacén
   LATE = 'LATE',         // Se pasó de la fecha de entrega
@@ -16,6 +19,7 @@ export enum RentalStatus {
 
 export enum TransactionStatus {
   COMPLETED = 'COMPLETED',
+  PARTIAL = 'PARTIAL', //abonos
   CANCELLED = 'CANCELLED',
   REFUNDED = 'REFUNDED', // Devolución parcial o total
   PENDING = 'PENDING',
