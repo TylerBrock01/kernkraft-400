@@ -109,4 +109,13 @@ export class TransactionsController {
   ) {
     return this.transactionsService.refundSale(id, refundDto, user, user.businessId);
   }
+
+  @Patch(':id/resolve')
+  @Roles(Role.ADMIN, Role.VENDEDOR,Role.ALMACEN)
+  async resolveMission(
+    @Param('id',ParseIntPipe) id: number,
+    @GetUser() user: ActiveUser,
+  ) {
+    return this.transactionsService.resolveMission(id, user);
+  }
 }

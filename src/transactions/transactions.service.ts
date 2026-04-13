@@ -597,7 +597,7 @@ export class TransactionsService {
       .andWhere('tx.returnDate BETWEEN :start AND :end', { start, end })
       // Solo transacciones vivas (no canceladas)
       .andWhere('tx.status IN (:...validStatuses)', {
-        validStatuses: [TransactionStatus.COMPLETED, TransactionStatus.PENDING]
+        validStatuses: [TransactionStatus.PAID, TransactionStatus.PENDING]
       });
 
     // 🛡️ REGLA DE ORO UNIVERSAL:
@@ -651,6 +651,27 @@ export class TransactionsService {
         product: { name: c.product?.name },
         quantity: c.quantity
       })) || []
+    };
+  }
+
+  async resolveMission(id: number, user: ActiveUser) {
+    // 1. Buscamos la transacción asegurándonos que le pertenezca a la empresa
+    const pickUpSale = await this.transactionRepository.findOne({
+      where: { id, businessId: user.businessId }
+    });
+
+    if (!pickUpSale) {
+      throw new NotFoundException('Misión logística no encontrada en el radar.');
+    }
+
+    pickUpSale.status = TransactionStatus.COMPLETED;
+    pickUpSale.rentalStatus = RentalStatus.FULFILLED;
+    // 3. Guardamos los cambios
+    await this.transactionRepository.save(pickUpSale);
+
+    return {
+      success: true,
+      message: 'Pedido entregado y cerrado.'
     };
   }
 }
