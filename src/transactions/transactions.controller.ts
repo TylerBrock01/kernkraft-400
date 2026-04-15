@@ -118,4 +118,13 @@ export class TransactionsController {
   ) {
     return this.transactionsService.resolveMission(id, user);
   }
+
+  @Get('history/me')
+  async getMyHistory(
+    @GetUser() user: ActiveUser,
+    @Query('limit') limit: number = 10,
+  ) {
+    // El controlador delega el trabajo inmediatamente
+    return this.transactionsService.getUserHistory(user, limit);
+  }
 }

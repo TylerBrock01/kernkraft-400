@@ -674,4 +674,12 @@ export class TransactionsService {
       message: 'Pedido entregado y cerrado.'
     };
   }
+
+  async getUserHistory(user: ActiveUser, limit: number) {
+    return await this.transactionRepository.find({
+      where: { userId: user.id }, // Ajusta al nombre de tu columna en BD
+      order: { transactionDate: 'DESC' },
+      take: limit,
+    });
+  }
 }
