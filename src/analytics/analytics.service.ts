@@ -6,6 +6,7 @@ import { User } from '../users/entities/user.entity';
 import { Transaction, TransactionContent } from '../transactions/entities/transaction.entity';
 import { StockAdjustment } from '../stock-adjustments/entities/stock-adjustment.entity';
 import { CashMovement } from '../cash-movements/entities/cash-movement.entity';
+import { ActiveUser } from '../auth/classes/active-user.class';
 
 @Injectable()
 export class AnalyticsService {
@@ -20,7 +21,7 @@ export class AnalyticsService {
     private readonly cashMovementRepository: Repository<CashMovement>,
   ) {}
 
-  async getWeeklySnapshot(user: User) {
+  async getWeeklySnapshot(user: ActiveUser) {
     const { businessId } = user;
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
@@ -87,7 +88,7 @@ export class AnalyticsService {
     };
   }
 
-  async getInvestorMetrics(user: User) {
+  async getInvestorMetrics(user: ActiveUser) {
     const { businessId } = user;
     const now = new Date();
 
@@ -315,4 +316,31 @@ export class AnalyticsService {
     };
   }
 
+  // analytics.service.ts (o transactions.service.ts)
+
+  async getDailyRevenue(businessId: string): Promise<number> {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const result = await this.transactionRepository
+      .createQueryBuilder('transaction')
+      // ✨ LA MAGIA CONTABLE: (Total - Depósito)
+      // Usamos COALESCE por si depositAmount es nulo en ventas directas
+      .select('SUM(transaction.total - COALESCE(transaction.depositAmount, 0))', 'dailyTotal')
+      .where('transaction.businessId = :businessId', { businessId })
+      // ✨ CORRECCIÓN DE COLUMNA: Usamos transactionDate
+      .andWhere('transaction.transactionDate BETWEEN :start AND :end', {
+        start: todayStart,
+        end: todayEnd
+      })
+      .andWhere('transaction.status = :validStatus', {
+        validStatus: 'COMPLETED' // Asumiendo que TransactionStatus.COMPLETED es el string 'COMPLETED'
+      })
+      .getRawOne();
+
+    return Number(result.dailyTotal || 0);
+  }
 }

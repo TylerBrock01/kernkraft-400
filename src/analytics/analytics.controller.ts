@@ -10,6 +10,7 @@ import { RequirePlan } from '../auth/decorators/require-plan.decorator';
 import { SubscriptionPlan } from '../business/entities/business.entity';
 import { BusinessActiveGuard } from '../auth/guards/business-active.guard';
 import { PlanGuard } from '../auth/guards/plan.guard';
+import { ActiveUser } from '../auth/classes/active-user.class';
 
 @Controller('analytics')
 @Roles(Role.SUPER_ADMIN,Role.ADMIN) // La analítica suele ser solo para el dueño
@@ -19,11 +20,23 @@ export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
   @Get('weekly-snapshot')
-  async getWeekly(@GetUser() user: User) {
+  async getWeekly(@GetUser() user: ActiveUser) {
     return this.analyticsService.getWeeklySnapshot(user);
   }
   @Get('investor')
-  getInvestorMetrics(@GetUser() user: User) {
+  getInvestorMetrics(@GetUser() user: ActiveUser) {
     return this.analyticsService.getInvestorMetrics(user);
+  }
+
+  @Get('daily-revenue')
+  async getDailyRevenue(@GetUser() user: ActiveUser) {
+    // Obtenemos la suma
+    const total = await this.analyticsService.getDailyRevenue(user.businessId);
+
+    // Lo mandamos en un JSON limpio
+    return {
+      date: new Date().toISOString(),
+      revenue: total
+    };
   }
 }
