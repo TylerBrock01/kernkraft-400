@@ -21,7 +21,8 @@ export class TransactionContentsDto {
   productId: number;
 
   @IsNotEmpty({ message: 'La cantidad no puede estar vacía' })
-  @IsInt({ message: 'Cantidad no válida' })
+  @IsNumber({}, { message: 'La cantidad debe ser un número válido' })
+  @Min(0, { message: 'La cantidad no puede ser negativa' }) // Opcional pero recomendado
   quantity: number;
 }
 

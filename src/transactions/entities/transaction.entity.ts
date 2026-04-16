@@ -126,7 +126,7 @@ export class TransactionContent {
   @Column({ name: 'product_id' }) // Columna física para el enlace al producto
   productId: number;
 
-  @Column('int')
+  @Column('decimal', { precision: 12, scale: 2, default: 0 })
   quantity: number;
 
   @Column({ type: 'decimal', precision: 12, scale: 2 })
