@@ -22,9 +22,12 @@ export class CreateProductDto {
   price: number;
 
   @IsNotEmpty({ message: 'El stock es requerido' })
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
+  @Type(() => Number) // Asegura que el valor se trate como número
+  @IsNumber(
+    { allowInfinity: false, allowNaN: false, maxDecimalPlaces: 2 },
+    { message: 'El stock debe ser un número con máximo 2 decimales' }
+  )
+  @Min(0, { message: 'El stock no puede ser menor a 0' })
   stock: number;
 
   @IsOptional()
