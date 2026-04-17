@@ -31,7 +31,7 @@ export class AnalyticsController {
   @Get('daily-revenue')
   async getDailyRevenue(@GetUser() user: ActiveUser) {
     // Obtenemos la suma
-    const total = await this.analyticsService.getDailyRevenue(user.businessId);
+    const total = await this.analyticsService.getDailyRevenue(user);
 
     // Lo mandamos en un JSON limpio
     return {
