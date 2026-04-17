@@ -5,7 +5,7 @@ import { Repository } from 'typeorm';
 import { User } from '../users/entities/user.entity';
 import { Transaction, TransactionContent } from '../transactions/entities/transaction.entity';
 import { StockAdjustment } from '../stock-adjustments/entities/stock-adjustment.entity';
-import { CashMovement } from '../cash-movements/entities/cash-movement.entity';
+import { CashMovement, CashMovementType } from '../cash-movements/entities/cash-movement.entity';
 import { ActiveUser } from '../auth/classes/active-user.class';
 
 @Injectable()
@@ -316,9 +316,7 @@ export class AnalyticsService {
     };
   }
 
-  // analytics.service.ts (o transactions.service.ts)
-
-  async getDailyRevenue(businessId: string): Promise<number> {
+  async getDailyRevenue(businessId: ActiveUser): Promise<number> {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
@@ -342,5 +340,48 @@ export class AnalyticsService {
       .getRawOne();
 
     return Number(result.dailyTotal || 0);
+  }
+
+  async getDailyFinancialPulse(user: ActiveUser) {
+    const { businessId } = user;
+    // 1. Configuramos el rango de "Hoy"
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date();
+    end.setHours(23, 59, 59, 999);
+
+    // 2. Sumamos Ventas Limpias (Sin depósitos, solo dinero que es nuestro)
+    const revenueQuery = this.transactionRepository
+      .createQueryBuilder('tx')
+      .select('SUM(tx.total - COALESCE(tx.depositAmount, 0))', 'total')
+      .where('tx.businessId = :businessId', { businessId })
+      .andWhere('tx.transactionDate BETWEEN :start AND :end', { start, end })
+      .andWhere('tx.status = :status', { status: 'COMPLETED' })
+      .getRawOne();
+
+    // 3. Sumamos Gastos Operativos (Dinero físico que SALIÓ de la caja hoy)
+    const expensesQuery = this.cashMovementRepository
+      .createQueryBuilder('cm')
+      .select('SUM(cm.amount)', 'total')
+      .where('cm.businessId = :businessId', { businessId })
+      .andWhere('cm.date BETWEEN :start AND :end', { start, end })
+      .andWhere('cm.type = :type', { type: CashMovementType.OUT })
+      .getRawOne();
+
+    // 4. Ejecutamos ambas consultas al mismo tiempo (Promesas en paralelo para velocidad Nivel Agencia)
+    const [rev, exp] = await Promise.all([revenueQuery, expensesQuery]);
+
+    // 5. Limpiamos los datos
+    const totalRevenue = Number(rev?.total || 0);
+    const operatingExpenses = Number(exp?.total || 0);
+
+    // 6. Empaquetamos el Pulso Financiero
+    return {
+      revenue: totalRevenue,
+      operatingExpenses: operatingExpenses,
+      // 💰 GANANCIA LIBRE DE CAJA: Lo que entró menos lo que salió
+      netProfit: totalRevenue - operatingExpenses
+    };
   }
 }
