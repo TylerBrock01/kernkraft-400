@@ -98,18 +98,20 @@ export class AnalyticsService {
     const endOfPreviousMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
 
     // 📊 2. EXTRACCIÓN DE DATOS (MES ACTUAL)
+    // 🛡️ REFACTOR: Restamos los depósitos de los ingresos
     const currentMonthStats = await this.transactionRepository
       .createQueryBuilder('t')
-      .select('SUM(t.total)', 'revenue')
+      .select('SUM(t.total - COALESCE(t.depositAmount, 0))', 'revenue')
       .where('t.businessId = :businessId', { businessId })
       .andWhere('t.status = :status', { status: 'COMPLETED' })
       .andWhere('t.transactionDate >= :startDate', { startDate: startOfCurrentMonth })
       .getRawOne();
 
     // 📉 3. EXTRACCIÓN DE DATOS (MES ANTERIOR)
+    // 🛡️ REFACTOR: Restamos los depósitos de los ingresos
     const previousMonthStats = await this.transactionRepository
       .createQueryBuilder('t')
-      .select('SUM(t.total)', 'revenue')
+      .select('SUM(t.total - COALESCE(t.depositAmount, 0))', 'revenue')
       .where('t.businessId = :businessId', { businessId })
       .andWhere('t.status = :status', { status: 'COMPLETED' })
       .andWhere('t.transactionDate >= :startDate AND t.transactionDate <= :endDate', {
@@ -130,7 +132,6 @@ export class AnalyticsService {
     }
 
     // --- 🏆 NUEVO BLOQUE: RENDIMIENTO POR ACTIVO (ROI) ---
-    // 5. Buscamos los 5 productos estrella
     const topAssets = await this.contentRepository
       .createQueryBuilder('tc')
       .leftJoin('tc.transaction', 't')
@@ -152,7 +153,6 @@ export class AnalyticsService {
     let assetPerformance = [];
 
     if (topAssets.length > 0) {
-      // 6. 🛡️ CORRECCIÓN N+1: Extraemos los IDs y hacemos UNA SOLA consulta de mermas
       const topAssetIds = topAssets.map(a => a.productId);
 
       const mermasData = await this.adjustmentRepository
@@ -164,14 +164,12 @@ export class AnalyticsService {
         .groupBy('sa.productId')
         .getRawMany();
 
-      // Convertimos las mermas en un diccionario (Mapa) para búsqueda instantánea
       const mermasMap = new Map(
         mermasData.map(m => [m.productId, parseInt(m.lostUnits || 0)])
       );
 
-      // Cruzamos los datos en memoria de forma instantánea
       assetPerformance = topAssets.map(asset => {
-        const lostUnits = mermasMap.get(asset.productId) || 0; // Buscamos en el mapa, no en la BD
+        const lostUnits = mermasMap.get(asset.productId) || 0;
         const gross = parseFloat(asset.grossRevenue);
         const lossValue = lostUnits * parseFloat(asset.currentPrice);
         const netRevenue = gross - lossValue;
@@ -195,13 +193,14 @@ export class AnalyticsService {
     // 7. Buscamos a los clientes más valiosos de todos los tiempos (Top 3)
     const topCustomers = await this.transactionRepository
       .createQueryBuilder('t')
-      .leftJoin('t.customer', 'c') // Usamos la relación que creaste en la entidad
+      .leftJoin('t.customer', 'c')
       .select('c.name', 'customerName')
-      .addSelect('SUM(t.total)', 'totalSpent')
+      // 🛡️ REFACTOR: El gasto del cliente no debe incluir los depósitos que se le van a devolver
+      .addSelect('SUM(t.total - COALESCE(t.depositAmount, 0))', 'totalSpent')
       .addSelect('COUNT(t.id)', 'transactionCount')
       .where('t.businessId = :businessId', { businessId })
       .andWhere('t.status = :status', { status: 'COMPLETED' })
-      .andWhere('t.customerId IS NOT NULL') // Excluimos ventas anónimas de chicles
+      .andWhere('t.customerId IS NOT NULL')
       .groupBy('c.id')
       .addGroupBy('c.name')
       .orderBy('"totalSpent"', 'DESC')
@@ -209,16 +208,17 @@ export class AnalyticsService {
       .getRawMany();
 
     // 8. Calculamos qué porcentaje de las ventas viene de clientes registrados
+    // 🛡️ REFACTOR: Ventas puras para allTimeStats
     const allTimeStats = await this.transactionRepository
       .createQueryBuilder('t')
-      .select('SUM(t.total)', 'totalRevenue')
+      .select('SUM(t.total - COALESCE(t.depositAmount, 0))', 'totalRevenue')
       .where('t.businessId = :businessId', { businessId })
       .andWhere('t.status = :status', { status: 'COMPLETED' })
       .getRawOne();
 
     const identifiedStats = await this.transactionRepository
       .createQueryBuilder('t')
-      .select('SUM(t.total)', 'totalIdentified')
+      .select('SUM(t.total - COALESCE(t.depositAmount, 0))', 'totalIdentified')
       .where('t.businessId = :businessId', { businessId })
       .andWhere('t.status = :status', { status: 'COMPLETED' })
       .andWhere('t.customerId IS NOT NULL')
@@ -227,8 +227,6 @@ export class AnalyticsService {
     const totalAllTime = parseFloat(allTimeStats.totalRevenue || 0);
     const totalIdentified = parseFloat(identifiedStats.totalIdentified || 0);
 
-    // Si la mayoría del dinero es anónimo, el porcentaje será bajito.
-    // Si casi todo es por renta de equipo pesado a clientes, rozará el 100%.
     const loyaltyPercentage = totalAllTime > 0 ? (totalIdentified / totalAllTime) * 100 : 0;
 
     const customerInsights = {
@@ -242,12 +240,13 @@ export class AnalyticsService {
 
     // --- 🏦 NUEVO BLOQUE: GASTOS OPERATIVOS Y UTILIDAD NETA ---
     // 10. Consultamos gastos (OUT) del mes actual y anterior
+    // 🛡️ REFACTOR: Añadimos "AND cm.category = 'OPERATING_EXPENSE'" para ignorar devoluciones
     const operatingExpenses = await this.cashMovementRepository
       .createQueryBuilder('cm')
       .select(`
-        SUM(CASE WHEN cm.date >= :startCurrent AND cm.type = 'OUT' THEN cm.amount ELSE 0 END) as current_expenses,
-        SUM(CASE WHEN cm.date >= :startPrev AND cm.date <= :endPrev AND cm.type = 'OUT' THEN cm.amount ELSE 0 END) as previous_expenses
-      `)
+      SUM(CASE WHEN cm.date >= :startCurrent AND cm.type = 'OUT' AND cm.category = 'OPERATING_EXPENSE' THEN cm.amount ELSE 0 END) as current_expenses,
+      SUM(CASE WHEN cm.date >= :startPrev AND cm.date <= :endPrev AND cm.type = 'OUT' AND cm.category = 'OPERATING_EXPENSE' THEN cm.amount ELSE 0 END) as previous_expenses
+    `)
       .setParameters({
         startCurrent: startOfCurrentMonth,
         startPrev: startOfPreviousMonth,
@@ -260,18 +259,16 @@ export class AnalyticsService {
     const previousExpenses = parseFloat(operatingExpenses.previous_expenses || 0);
 
     // 11. MATEMÁTICA FINAL: Utilidad Neta (Lo que realmente va al bolsillo)
-    // 11. 🛡️ CORRECCIÓN MATEMÁTICA: Utilidad Neta y Crecimiento Real
     const netProfitCurrent = currentRevenue - currentExpenses;
     const netProfitPrevious = previousRevenue - previousExpenses;
 
     let netProfitGrowth = 0;
     if (netProfitPrevious !== 0) {
-      // Usamos Math.abs en el divisor para que la transición de números rojos a verdes se calcule bien
       netProfitGrowth = ((netProfitCurrent - netProfitPrevious) / Math.abs(netProfitPrevious)) * 100;
     } else if (netProfitPrevious === 0 && netProfitCurrent > 0) {
       netProfitGrowth = 100;
     } else if (netProfitPrevious === 0 && netProfitCurrent < 0) {
-      netProfitGrowth = -100; // Si no ganaban nada y ahora pierden
+      netProfitGrowth = -100;
     }
 
     const financialHealth = {
@@ -287,22 +284,21 @@ export class AnalyticsService {
         marginPercentage: currentRevenue > 0 ? (netProfitCurrent / currentRevenue) * 100 : 0
       }
     };
+
     // --- 💸 NUEVO BLOQUE: SALUD DEL FLUJO DE EFECTIVO ---
     // 9. Calculamos cuánto dinero en caja NO es del negocio (Depósitos retenidos)
     const retainedCapitalStats = await this.transactionRepository
       .createQueryBuilder('t')
       .select('SUM(t.depositAmount)', 'retainedAmount')
       .where('t.businessId = :businessId', { businessId })
-      .andWhere('t.rentalStatus = :status', { status: 'OUT' }) // 👈 Solo las rentas activas
+      .andWhere('t.rentalStatus = :status', { status: 'OUT' })
       .getRawOne();
 
     const retainedCapital = parseFloat(retainedCapitalStats.retainedAmount || 0);
 
-    // El "Capital Libre" es la suma histórica de ganancias puras (que ya calculamos arriba en totalAllTime)
-    // La "Liquidez Actual" es todo el efectivo que físicamente debería existir en las cuentas/cajas del negocio
     const cashFlowHealth = {
-      retainedCapital: retainedCapital, // Dinero intocable (se debe regresar)
-      freeCapitalAllTime: totalAllTime, // Dinero 100% del negocio (ganancias puras)
+      retainedCapital: retainedCapital,
+      freeCapitalAllTime: totalAllTime,
       physicalCashInBusiness: retainedCapital + totalAllTime
     };
 
@@ -322,7 +318,7 @@ export class AnalyticsService {
             isPositive: growthPercentage >= 0
           }
         },
-        assetPerformance: assetPerformance, // 👈 Aquí inyectamos el ROI
+        assetPerformance: assetPerformance,
         customerInsights: customerInsights,
         cashFlowHealth: cashFlowHealth,
         financialHealth: financialHealth,
