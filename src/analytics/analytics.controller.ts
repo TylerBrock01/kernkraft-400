@@ -31,7 +31,7 @@ export class AnalyticsController {
   @Get('daily-revenue')
   async getDailyRevenue(@GetUser() user: ActiveUser) {
     // Obtenemos la suma
-    const total = await this.analyticsService.getDailyRevenue(user);
+    const total = await this.analyticsService.getDailyRevenue(user.businessId);
 
     // Lo mandamos en un JSON limpio
     return {
@@ -45,7 +45,7 @@ export class AnalyticsController {
     // 1. Aislamiento Multi-Tenant (SaaS):
     // Le pasamos estrictamente el businessId del usuario logueado para que
     // la frutería jamás pueda ver los números de la agencia de rentas.
-    const pulseData = await this.analyticsService.getDailyFinancialPulse(user);
+    const pulseData = await this.analyticsService.getCompleteFinancialPulse(user);
 
     // 2. Empaquetado Limpio para el Frontend
     return {

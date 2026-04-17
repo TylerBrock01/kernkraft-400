@@ -4,7 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../users/entities/user.entity';
 import { Transaction, TransactionContent } from '../transactions/entities/transaction.entity';
-import { StockAdjustment } from '../stock-adjustments/entities/stock-adjustment.entity';
+import { AdjustmentReason, StockAdjustment } from '../stock-adjustments/entities/stock-adjustment.entity';
 import { CashMovement, CashMovementType } from '../cash-movements/entities/cash-movement.entity';
 import { ActiveUser } from '../auth/classes/active-user.class';
 
@@ -316,7 +316,7 @@ export class AnalyticsService {
     };
   }
 
-  async getDailyRevenue(businessId: ActiveUser): Promise<number> {
+  async getDailyRevenue(businessId: string): Promise<number> {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
@@ -342,46 +342,62 @@ export class AnalyticsService {
     return Number(result.dailyTotal || 0);
   }
 
-  async getDailyFinancialPulse(user: ActiveUser) {
+  async getCompleteFinancialPulse(user: ActiveUser) {
     const { businessId } = user;
-    // 1. Configuramos el rango de "Hoy"
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
+    // 1. Configuramos el radar para HOY
+    const start = new Date(); start.setHours(0, 0, 0, 0);
+    const end = new Date(); end.setHours(23, 59, 59, 999);
 
-    const end = new Date();
-    end.setHours(23, 59, 59, 999);
-
-    // 2. Sumamos Ventas Limpias (Sin depósitos, solo dinero que es nuestro)
-    const revenueQuery = this.transactionRepository
-      .createQueryBuilder('tx')
+    // 2. INGRESOS (El dinero que es nuestro)
+    const revenueQuery = this.transactionRepository.createQueryBuilder('tx')
       .select('SUM(tx.total - COALESCE(tx.depositAmount, 0))', 'total')
-      .where('tx.businessId = :businessId', { businessId })
-      .andWhere('tx.transactionDate BETWEEN :start AND :end', { start, end })
-      .andWhere('tx.status = :status', { status: 'COMPLETED' })
+      .where('tx.businessId = :businessId AND tx.transactionDate BETWEEN :start AND :end', { businessId, start, end })
+      .andWhere('tx.status = :status', { status: 'COMPLETED' }) // Puedes incluir FULFILLED si aplica
       .getRawOne();
 
-    // 3. Sumamos Gastos Operativos (Dinero físico que SALIÓ de la caja hoy)
-    const expensesQuery = this.cashMovementRepository
-      .createQueryBuilder('cm')
+    // 3. GASTOS OPERATIVOS (Dinero que salió de la caja)
+    const expensesQuery = this.cashMovementRepository.createQueryBuilder('cm')
       .select('SUM(cm.amount)', 'total')
-      .where('cm.businessId = :businessId', { businessId })
-      .andWhere('cm.date BETWEEN :start AND :end', { start, end })
+      .where('cm.businessId = :businessId AND cm.date BETWEEN :start AND :end', { businessId, start, end })
       .andWhere('cm.type = :type', { type: CashMovementType.OUT })
       .getRawOne();
 
-    // 4. Ejecutamos ambas consultas al mismo tiempo (Promesas en paralelo para velocidad Nivel Agencia)
-    const [rev, exp] = await Promise.all([revenueQuery, expensesQuery]);
+    // 4. MERMAS FINANCIERAS (El costo de lo que perdimos)
+    const wasteQuery = this.adjustmentRepository.createQueryBuilder('adj')
+      // ✨ MAGIA: Unimos la tabla de productos para saber cuánto nos costó esa merma
+      .leftJoin('adj.product', 'product')
+      // OJO: Multiplicamos cantidad por el precio. Asumo que en Product tienes 'costPrice' o similar.
+      // Si solo tienes 'price' (precio de venta), usa 'product.price'.
+      .select('SUM(adj.quantity * product.price)', 'totalValue')
+      .where('adj.businessId = :businessId AND adj.createdAt BETWEEN :start AND :end', { businessId, start, end })
+      // 🛡️ Filtro Táctico: Solo sumamos las razones que son pura pérdida
+      .andWhere('adj.reason IN (:...lossReasons)', {
+        lossReasons: [
+          AdjustmentReason.DAMAGE,
+          AdjustmentReason.THEFT,
+          AdjustmentReason.EXPIRATION,
+          AdjustmentReason.LOSS
+        ]
+      })
+      .getRawOne();
 
-    // 5. Limpiamos los datos
-    const totalRevenue = Number(rev?.total || 0);
+    // 5. Ejecutamos las 3 consultas al mismo tiempo en PostgreSQL
+    const [rev, exp, wst] = await Promise.all([revenueQuery, expensesQuery, wasteQuery]);
+
+    // 6. Limpieza de nulos (PostgreSQL devuelve null si no hubo ventas/gastos/mermas en el día)
+    const revenue = Number(rev?.total || 0);
     const operatingExpenses = Number(exp?.total || 0);
+    const wasteValue = Number(wst?.totalValue || 0);
 
-    // 6. Empaquetamos el Pulso Financiero
+    // 7. La métrica reina: Ganancia Libre
+    const netProfit = revenue - operatingExpenses - wasteValue;
+
     return {
-      revenue: totalRevenue,
-      operatingExpenses: operatingExpenses,
-      // 💰 GANANCIA LIBRE DE CAJA: Lo que entró menos lo que salió
-      netProfit: totalRevenue - operatingExpenses
+      timestamp: new Date().toISOString(),
+      revenue,
+      operatingExpenses,
+      waste: wasteValue,
+      netProfit
     };
   }
 }
