@@ -130,7 +130,7 @@ export class AnalyticsService {
     }
 
     // --- 🏆 NUEVO BLOQUE: RENDIMIENTO POR ACTIVO (ROI) ---
-    // 5. Buscamos los 5 productos que más dinero han metido a la caja históricamente
+    // 5. Buscamos los 5 productos estrella
     const topAssets = await this.contentRepository
       .createQueryBuilder('tc')
       .leftJoin('tc.transaction', 't')
@@ -149,34 +149,47 @@ export class AnalyticsService {
       .limit(5)
       .getRawMany();
 
-    // 6. Cruzamos esos productos estrella contra sus mermas para saber la ganancia real
-    const assetPerformance = await Promise.all(topAssets.map(async (asset) => {
-      const mermas = await this.adjustmentRepository
+    let assetPerformance = [];
+
+    if (topAssets.length > 0) {
+      // 6. 🛡️ CORRECCIÓN N+1: Extraemos los IDs y hacemos UNA SOLA consulta de mermas
+      const topAssetIds = topAssets.map(a => a.productId);
+
+      const mermasData = await this.adjustmentRepository
         .createQueryBuilder('sa')
-        .select('SUM(sa.quantity)', 'lostUnits')
+        .select('sa.productId', 'productId')
+        .addSelect('SUM(sa.quantity)', 'lostUnits')
         .where('sa.businessId = :businessId', { businessId })
-        .andWhere('sa.productId = :productId', { productId: asset.productId })
-        .getRawOne();
+        .andWhere('sa.productId IN (:...topAssetIds)', { topAssetIds })
+        .groupBy('sa.productId')
+        .getRawMany();
 
-      const lostUnits = parseInt(mermas.lostUnits || 0);
-      const gross = parseFloat(asset.grossRevenue);
-      const lossValue = lostUnits * parseFloat(asset.currentPrice); // Lo que nos costó perderlos
-      const netRevenue = gross - lossValue; // El dinero verdaderamente libre
+      // Convertimos las mermas en un diccionario (Mapa) para búsqueda instantánea
+      const mermasMap = new Map(
+        mermasData.map(m => [m.productId, parseInt(m.lostUnits || 0)])
+      );
 
-      return {
-        product: asset.productName,
-        utilization: {
-          timesRentedOrSold: parseInt(asset.timesRentedOrSold),
-          unitsLostToDamage: lostUnits
-        },
-        financials: {
-          grossRevenue: gross,       // Dinero que entró
-          lossValue: lossValue,      // Dinero que perdimos en mermas
-          netRevenue: netRevenue     // Ganancia real del producto
-        }
-      };
-    }));
-    // ... aquí termina tu código de assetPerformance ...
+      // Cruzamos los datos en memoria de forma instantánea
+      assetPerformance = topAssets.map(asset => {
+        const lostUnits = mermasMap.get(asset.productId) || 0; // Buscamos en el mapa, no en la BD
+        const gross = parseFloat(asset.grossRevenue);
+        const lossValue = lostUnits * parseFloat(asset.currentPrice);
+        const netRevenue = gross - lossValue;
+
+        return {
+          product: asset.productName,
+          utilization: {
+            timesRentedOrSold: parseInt(asset.timesRentedOrSold),
+            unitsLostToDamage: lostUnits
+          },
+          financials: {
+            grossRevenue: gross,
+            lossValue: lossValue,
+            netRevenue: netRevenue
+          }
+        };
+      });
+    }
 
     // --- 👥 NUEVO BLOQUE: VALOR DEL CLIENTE (LTV) ---
     // 7. Buscamos a los clientes más valiosos de todos los tiempos (Top 3)
@@ -227,8 +240,6 @@ export class AnalyticsService {
       }))
     };
 
-    // ... (después de customerInsights) ...
-
     // --- 🏦 NUEVO BLOQUE: GASTOS OPERATIVOS Y UTILIDAD NETA ---
     // 10. Consultamos gastos (OUT) del mes actual y anterior
     const operatingExpenses = await this.cashMovementRepository
@@ -249,14 +260,18 @@ export class AnalyticsService {
     const previousExpenses = parseFloat(operatingExpenses.previous_expenses || 0);
 
     // 11. MATEMÁTICA FINAL: Utilidad Neta (Lo que realmente va al bolsillo)
+    // 11. 🛡️ CORRECCIÓN MATEMÁTICA: Utilidad Neta y Crecimiento Real
     const netProfitCurrent = currentRevenue - currentExpenses;
     const netProfitPrevious = previousRevenue - previousExpenses;
 
     let netProfitGrowth = 0;
-    if (netProfitPrevious > 0) {
-      netProfitGrowth = ((netProfitCurrent - netProfitPrevious) / netProfitPrevious) * 100;
+    if (netProfitPrevious !== 0) {
+      // Usamos Math.abs en el divisor para que la transición de números rojos a verdes se calcule bien
+      netProfitGrowth = ((netProfitCurrent - netProfitPrevious) / Math.abs(netProfitPrevious)) * 100;
     } else if (netProfitPrevious === 0 && netProfitCurrent > 0) {
-      netProfitGrowth = 100; // Si el mes pasado ganaste 0 y hoy ganaste algo, es 100% crecimiento
+      netProfitGrowth = 100;
+    } else if (netProfitPrevious === 0 && netProfitCurrent < 0) {
+      netProfitGrowth = -100; // Si no ganaban nada y ahora pierden
     }
 
     const financialHealth = {
@@ -272,7 +287,6 @@ export class AnalyticsService {
         marginPercentage: currentRevenue > 0 ? (netProfitCurrent / currentRevenue) * 100 : 0
       }
     };
-
     // --- 💸 NUEVO BLOQUE: SALUD DEL FLUJO DE EFECTIVO ---
     // 9. Calculamos cuánto dinero en caja NO es del negocio (Depósitos retenidos)
     const retainedCapitalStats = await this.transactionRepository
