@@ -316,7 +316,8 @@ export class AnalyticsService {
     };
   }
 
-  async getDailyRevenue(businessId: string): Promise<number> {
+  async getDailyRevenue(user: ActiveUser){
+    const { businessId } = user;
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
