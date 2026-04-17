@@ -11,6 +11,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RequirePlan } from '../auth/decorators/require-plan.decorator';
 import { SubscriptionPlan } from '../business/entities/business.entity';
 import { PlanGuard } from '../auth/guards/plan.guard';
+import { ActiveUser } from '../auth/classes/active-user.class';
 
 @Controller('cash-movements')
 @UseGuards(JwtAuthGuard, RolesGuard, BusinessActiveGuard,PlanGuard)
@@ -20,7 +21,7 @@ export class CashMovementsController {
 
   @Roles(Role.ADMIN, Role.VENDEDOR)
   @Post()
-  create(@Body() createDto: CreateCashMovementDto, @GetUser() user: User) {
+  create(@Body() createDto: CreateCashMovementDto, @GetUser() user: ActiveUser) {
     return this.cashMovementsService.create(createDto, user);
   }
 

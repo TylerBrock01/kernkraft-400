@@ -1,10 +1,11 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, LessThanOrEqual, MoreThanOrEqual, Repository } from 'typeorm';
-import { CashMovement } from './entities/cash-movement.entity';
+import { CashMovement, CashMovementCategory, CashMovementType } from './entities/cash-movement.entity';
 import { CreateCashMovementDto } from './dto/create-cash-movement.dto';
 import { User } from '../users/entities/user.entity';
 import { CashRegister, RegisterStatus } from '../cash-registers/entities/cash-register.entity';
+import { ActiveUser } from '../auth/classes/active-user.class';
 
 @Injectable()
 export class CashMovementsService {
@@ -16,7 +17,8 @@ export class CashMovementsService {
     private readonly cashRegisterRepository: Repository<CashRegister>,
   ) {}
 
-  async create(createDto: CreateCashMovementDto, user: User) {
+
+  async create(createDto: CreateCashMovementDto, user: ActiveUser) {
     // 1. VALIDACIÓN CRÍTICA: ¿Hay caja abierta?
     const openRegister = await this.cashRegisterRepository.findOne({
       where: {
@@ -30,11 +32,28 @@ export class CashMovementsService {
       throw new BadRequestException('Operación denegada: Debes abrir tu turno de caja antes de registrar movimientos de efectivo.');
     }
 
-    // 2. REGISTRAR EL MOVIMIENTO
+    // 🛡️ 2. EL ESCUDO CONTABLE: Validaciones de Lógica de Negocio
+    // Si no mandan categoría, asumimos que es 'OTHER' (ej. meter monedas para dar cambio)
+    const finalCategory = createDto.category || CashMovementCategory.OTHER;
+
+    // REGLA DE ORO: Un Gasto, Devolución o Retiro de Dueño JAMÁS puede ser una Entrada (IN)
+    const isOutgoingCategory =
+      finalCategory === CashMovementCategory.OPERATING_EXPENSE ||
+      finalCategory === CashMovementCategory.DEPOSIT_REFUND ||
+      finalCategory === CashMovementCategory.CAPITAL_WITHDRAWAL;
+
+    if (isOutgoingCategory && createDto.type === CashMovementType.IN) {
+      throw new BadRequestException(
+        `Conflicto contable: La categoría '${finalCategory}' obliga a que el movimiento sea una SALIDA (OUT) de dinero.`
+      );
+    }
+
+    // 3. REGISTRAR EL MOVIMIENTO
     const movement = this.cashMovementRepository.create({
       ...createDto,
+      category: finalCategory, // ✨ Inyectamos la categoría validada
       businessId: user.businessId,
-      userId: user.id, // El responsable del gasto/ingreso
+      userId: user.id,
       date: new Date()
     });
 
@@ -62,7 +81,6 @@ export class CashMovementsService {
       .orderBy('cm.date', 'DESC')
       .getMany();
   }
-  // ... debajo de getMyShiftMovements ...
 
   // 🕵️‍♂️ Endpoint exclusivo para el dueño (Auditoría)
   async findAll(

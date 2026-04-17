@@ -359,33 +359,31 @@ export class AnalyticsService {
 
   async getCompleteFinancialPulse(user: ActiveUser) {
     const { businessId } = user;
-    // 1. Configuramos el radar para HOY
+
     const start = new Date(); start.setHours(0, 0, 0, 0);
     const end = new Date(); end.setHours(23, 59, 59, 999);
 
-    // 2. INGRESOS (El dinero que es nuestro)
+    // 1. INGRESOS (Ventas puras, sin depósitos)
     const revenueQuery = this.transactionRepository.createQueryBuilder('tx')
       .select('SUM(tx.total - COALESCE(tx.depositAmount, 0))', 'total')
       .where('tx.businessId = :businessId AND tx.transactionDate BETWEEN :start AND :end', { businessId, start, end })
-      .andWhere('tx.status = :status', { status: 'COMPLETED' }) // Puedes incluir FULFILLED si aplica
+      .andWhere('tx.status = :status', { status: 'COMPLETED' })
       .getRawOne();
 
-    // 3. GASTOS OPERATIVOS (Dinero que salió de la caja)
+    // 2. GASTOS OPERATIVOS (Solo el dinero que nos cuesta operar)
     const expensesQuery = this.cashMovementRepository.createQueryBuilder('cm')
       .select('SUM(cm.amount)', 'total')
       .where('cm.businessId = :businessId AND cm.date BETWEEN :start AND :end', { businessId, start, end })
       .andWhere('cm.type = :type', { type: CashMovementType.OUT })
+      // ✨ EL ESCUDO CONTABLE: Filtramos para que NO cuente la devolución de depósitos
+      .andWhere('cm.category = :category', { category: 'OPERATING_EXPENSE' })
       .getRawOne();
 
-    // 4. MERMAS FINANCIERAS (El costo de lo que perdimos)
+    // 3. MERMAS FINANCIERAS (El costo de lo que perdimos)
     const wasteQuery = this.adjustmentRepository.createQueryBuilder('adj')
-      // ✨ MAGIA: Unimos la tabla de productos para saber cuánto nos costó esa merma
       .leftJoin('adj.product', 'product')
-      // OJO: Multiplicamos cantidad por el precio. Asumo que en Product tienes 'costPrice' o similar.
-      // Si solo tienes 'price' (precio de venta), usa 'product.price'.
       .select('SUM(adj.quantity * product.price)', 'totalValue')
       .where('adj.businessId = :businessId AND adj.createdAt BETWEEN :start AND :end', { businessId, start, end })
-      // 🛡️ Filtro Táctico: Solo sumamos las razones que son pura pérdida
       .andWhere('adj.reason IN (:...lossReasons)', {
         lossReasons: [
           AdjustmentReason.DAMAGE,
@@ -396,15 +394,15 @@ export class AnalyticsService {
       })
       .getRawOne();
 
-    // 5. Ejecutamos las 3 consultas al mismo tiempo en PostgreSQL
+    // 4. Ejecutamos Promesas en paralelo
     const [rev, exp, wst] = await Promise.all([revenueQuery, expensesQuery, wasteQuery]);
 
-    // 6. Limpieza de nulos (PostgreSQL devuelve null si no hubo ventas/gastos/mermas en el día)
+    // 5. Limpieza de datos
     const revenue = Number(rev?.total || 0);
     const operatingExpenses = Number(exp?.total || 0);
     const wasteValue = Number(wst?.totalValue || 0);
 
-    // 7. La métrica reina: Ganancia Libre
+    // 6. 💰 GANANCIA LIBRE REAL
     const netProfit = revenue - operatingExpenses - wasteValue;
 
     return {
