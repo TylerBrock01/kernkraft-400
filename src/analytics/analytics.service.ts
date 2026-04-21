@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../users/entities/user.entity';
-import { Transaction, TransactionContent } from '../transactions/entities/transaction.entity';
+import { Transaction, TransactionContent, TransactionStatus } from '../transactions/entities/transaction.entity';
 import { AdjustmentReason, StockAdjustment } from '../stock-adjustments/entities/stock-adjustment.entity';
 import { CashMovement, CashMovementType } from '../cash-movements/entities/cash-movement.entity';
 import { ActiveUser } from '../auth/classes/active-user.class';
@@ -409,4 +409,86 @@ export class AnalyticsService {
       netProfit
     };
   }
+
+  async exportTransactionsToCsv(businessId: string): Promise<string> {
+    // 1. Extraemos toda la "Grasa" (Relaciones)
+    const transactions = await this.transactionRepository.find({
+      where: {
+        businessId,
+        // Solo traemos lo que realmente generó dinero o está activo
+        status: TransactionStatus.COMPLETED
+      },
+      order: { transactionDate: 'DESC' },
+      // 🛡️ IMPORTANTE: Traemos todo el árbol de relaciones
+      relations: ['customer', 'user', 'contents', 'contents.product']
+    });
+
+    // 2. Encabezados Estratégicos (Lo que le importa al dueño)
+    const header = [
+      'Fecha',
+      'Ticket',
+      'Cajero',
+      'Cliente',
+      'Tipo de Operación',
+      'Estado (Renta)',
+      'Fecha Devolución',
+      'Artículos Entregados',
+      'Método Pago',
+      'Cupón Aplicado',
+      'Descuento ($)',
+      'Depósito Retenido ($)',
+      'Cobro Total ($)',
+      'Utilidad Libre ($)' // 🔥 La columna reina
+    ].join(',');
+
+    // 3. Transformación de Datos
+    const rows = transactions.map(t => {
+      // Fechas limpias
+      const date = t.transactionDate.toISOString().split('T')[0];
+      const returnDate = t.returnDate ? t.returnDate.toISOString().split('T')[0] : 'N/A';
+
+      // UUID Corto (Para que no se vea feo en Excel, tomamos la primera parte)
+      const shortTicket = t.uuid.split('-')[0].toUpperCase();
+
+      // Nombres
+      const cashier = t.user?.name || 'Sistema';
+      const customer = t.customer?.name || 'Público General';
+
+      // 📦 EMPAQUETADO DE PRODUCTOS: Convertimos el array en un string legible
+      // Ejemplo de salida: "2.5x Plátano | 1x Manzana" o "10x Silla | 1x Mesa"
+      const itemsString = t.contents
+        .map(c => `${c.quantity}x ${c.product?.name || 'Art. Desconocido'}`)
+        .join(' | ');
+
+      // Matemáticas Financieras
+      const total = Number(t.total);
+      const deposit = Number(t.depositAmount || 0);
+      const discount = Number(t.couponDiscount || 0);
+
+      // La fórmula de oro: Cobramos 100, devolvemos 20 de depósito = 80 libres
+      const realRevenue = total - deposit;
+
+      // 4. Retorno de la Fila (Escapando comas en los textos)
+      return [
+        date,
+        shortTicket,
+        `"${cashier}"`,   // Comillas para evitar que un nombre con coma rompa el Excel
+        `"${customer}"`,
+        t.type,           // SALE o RENTAL
+        t.rentalStatus || 'N/A',
+        returnDate,
+        `"${itemsString}"`, // Comillas vitales aquí por la cantidad de texto
+        t.paymentMethod,
+        t.coupon || 'Ninguno',
+        discount.toFixed(2),
+        deposit.toFixed(2),
+        total.toFixed(2),
+        realRevenue.toFixed(2)
+      ].join(',');
+    });
+
+    // 5. Ensamblaje Final
+    return [header, ...rows].join('\n');
+  }
+
 }

@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Res, UseGuards } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -11,6 +11,7 @@ import { SubscriptionPlan } from '../business/entities/business.entity';
 import { BusinessActiveGuard } from '../auth/guards/business-active.guard';
 import { PlanGuard } from '../auth/guards/plan.guard';
 import { ActiveUser } from '../auth/classes/active-user.class';
+import type { Response } from 'express'; // 👈 ESTA ES LA CLAVE
 
 @Controller('analytics')
 @Roles(Role.SUPER_ADMIN,Role.ADMIN) // La analítica suele ser solo para el dueño
@@ -53,5 +54,18 @@ export class AnalyticsController {
       businessId: user.businessId,
       data: pulseData // Aquí va { revenue, operatingExpenses, waste, netProfit }
     };
+  }
+
+  @Get('export/csv')
+  async downloadCsv(@GetUser() user: ActiveUser, @Res() res: Response) {
+    const csvData = await this.analyticsService.exportTransactionsToCsv(user.businessId);
+
+    const fileName = `reporte_caza_${new Date().toISOString().split('T')[0]}.csv`;
+
+    // Configuramos el "attachment" para forzar la descarga
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
+
+    return res.status(200).send(csvData);
   }
 }
