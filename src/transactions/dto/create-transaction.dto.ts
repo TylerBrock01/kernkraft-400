@@ -74,4 +74,8 @@ export class CreateTransactionDto {
   @IsNumber({}, { message: 'El monto del depósito debe ser un número' })
   @Min(0, { message: 'El depósito no puede ser negativo' })
   depositAmount?: number;
+
+  @IsOptional()
+  @IsNumber()
+  amountPaid?: number;
 }

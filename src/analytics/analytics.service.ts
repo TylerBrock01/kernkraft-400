@@ -1,11 +1,11 @@
 // src/analytics/analytics.service.ts
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, Repository } from 'typeorm';
+import { Between, In, Repository } from 'typeorm';
 import { User } from '../users/entities/user.entity';
 import { Transaction, TransactionContent, TransactionStatus } from '../transactions/entities/transaction.entity';
 import { AdjustmentReason, StockAdjustment } from '../stock-adjustments/entities/stock-adjustment.entity';
-import { CashMovement, CashMovementType } from '../cash-movements/entities/cash-movement.entity';
+import { CashMovement, CashMovementCategory, CashMovementType } from '../cash-movements/entities/cash-movement.entity';
 import { ActiveUser } from '../auth/classes/active-user.class';
 import { Timeframe } from './analytics.controller';
 
@@ -50,31 +50,48 @@ export class AnalyticsService {
     return { startDate, endDate };
   }
 
-  // 💰 MÉTODO UNIFICADO: Pulso Financiero
   async getFinancialPulse(businessId: string, period: Timeframe) {
     const { startDate, endDate } = this.getDateBoundaries(period);
 
-    // Buscamos todas las transacciones completadas en ese rango de tiempo
+    // 1. INGRESOS BRUTOS REALES (El dinero que tocó el cajón)
+    // Traemos tanto ventas completadas como ABONOS (PARTIAL)
     const transactions = await this.transactionRepository.find({
       where: {
         businessId,
-        status: TransactionStatus.COMPLETED,
+        status: In([TransactionStatus.COMPLETED, TransactionStatus.PARTIAL]),
         transactionDate: Between(startDate, endDate),
       },
     });
 
-    // Matemática financiera: Reduce el array para sumar los totales
-    // Recuerda que el 'depositAmount' NO es ganancia, es dinero retenido.
-    const revenue = transactions.reduce((sum, t) => {
-      const realSale = Number(t.total) - Number(t.depositAmount || 0);
-      return sum + realSale;
-    }, 0);
+    // 🧠 MAGIA FINANCIERA: Ya no usamos el total ni restamos el depósito.
+    // Usamos EXACTAMENTE lo que pagaron (amountPaid).
+    const revenue = transactions.reduce((sum, t) => sum + Number(t.amountPaid || 0), 0);
 
-    // Aquí irías a buscar a tu tabla de Gastos (OperatingExpenses)
-    // y Mermas (Waste) usando las mismas startDate y endDate.
-    // Por ahora lo simulamos con cálculos base para que tu UI no se rompa:
-    const operatingExpenses = revenue * 0.3; // Simulamos 30% de gastos
-    const waste = revenue * 0.05;            // Simulamos 5% de mermas
+    // 2. EXTRACCIÓN DE GASTOS Y MERMAS (La Cascada)
+    // Buscamos todas las salidas de dinero (OUT) en esa misma fecha
+    const movements = await this.cashMovementRepository.find({
+      where: {
+        businessId,
+        type: CashMovementType.OUT,
+        date: Between(startDate, endDate),
+      }
+    });
+
+    let operatingExpenses = 0;
+    let waste = 0;
+
+    // Clasificamos a dónde se fue el dinero
+    movements.forEach(m => {
+      if (m.category === CashMovementCategory.OPERATING_EXPENSE) {
+        operatingExpenses += Number(m.amount);
+      } else if (m.category === CashMovementCategory.WASTE_LOSS) {
+        waste += Number(m.amount);
+      }
+      // Ignoramos DEPOSIT_REFUND y CAPITAL_WITHDRAWAL porque contablemente
+      // no son gastos operativos del negocio.
+    });
+
+    // 3. UTILIDAD NETA LIBRE
     const netProfit = revenue - operatingExpenses - waste;
 
     return {

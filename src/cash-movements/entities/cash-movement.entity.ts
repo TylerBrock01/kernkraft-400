@@ -1,13 +1,18 @@
 import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
+import { CashRegister } from '../../cash-registers/entities/cash-register.entity'; // 👈 NUEVO IMPORT
 
 export enum CashMovementType {
   IN = 'IN',   // Entrada (ej: inyección de cambio, préstamos)
   OUT = 'OUT', // Salida (ej: pago de luz, compra de insumos, pago a proveedores)
 }
+
+// 👈 NUEVO: Categorías actualizadas
 export enum CashMovementCategory {
-  OPERATING_EXPENSE = 'OPERATING_EXPENSE', // Luz, agua, renta, mermas compradas
-  DEPOSIT_REFUND = 'DEPOSIT_REFUND',       // Devolución de garantía (NO afecta ganancia)
+  INITIAL_CHANGE = 'INITIAL_CHANGE',         // El fondo de caja ($500 en monedas al abrir)
+  OPERATING_EXPENSE = 'OPERATING_EXPENSE',   // Luz, agua, renta
+  WASTE_LOSS = 'WASTE_LOSS',                 // Dinero perdido por mermas/robos/comida echada a perder
+  DEPOSIT_REFUND = 'DEPOSIT_REFUND',         // Devolución de garantía (NO afecta ganancia)
   CAPITAL_WITHDRAWAL = 'CAPITAL_WITHDRAWAL', // El dueño sacó dinero para irse a cenar
   OTHER = 'OTHER',
 }
@@ -23,6 +28,14 @@ export class CashMovement {
   @Column({ name: 'user_id' })
   userId: number;
 
+  // 🛒 NUEVO: ¿De qué turno de caja se sacó o metió este dinero?
+  @Column({ name: 'cash_register_id', nullable: true })
+  cashRegisterId: string;
+
+  @ManyToOne(() => CashRegister)
+  @JoinColumn({ name: 'cash_register_id' })
+  cashRegister: CashRegister;
+
   @Column({ type: 'decimal', precision: 12, scale: 2 })
   amount: number;
 
@@ -35,7 +48,7 @@ export class CashMovement {
   @Column({
     type: 'enum',
     enum: CashMovementCategory,
-    default: CashMovementCategory.OTHER // Por defecto asumimos que es gasto
+    default: CashMovementCategory.OTHER
   })
   category: CashMovementCategory;
 

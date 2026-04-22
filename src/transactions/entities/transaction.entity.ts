@@ -3,6 +3,8 @@ import { Column, CreateDateColumn, Entity,
 import { Product } from '../../products/entities/product.entity';
 import { User } from '../../users/entities/user.entity';
 import { Customer } from '../../customers/entities/customer.entity';
+import { CashRegister } from '../../cash-registers/entities/cash-register.entity'; // 👈 NUEVO IMPORT
+
 export enum TransactionType {
   SALE = 'SALE',     // Venta normal (se va y no vuelve)
   RENTAL = 'RENTAL', // Renta (tiene que regresar)
@@ -61,6 +63,7 @@ export class Transaction {
 
   @Column({ name: 'user_id', nullable: true }) // Columna física para el ID del vendedor
   userId: number;
+
   // 🔄 ¿Es venta o renta?
   @Column({
     type: 'enum',
@@ -85,8 +88,13 @@ export class Transaction {
   })
   rentalStatus: RentalStatus;
 
+  // 💰 Total de la nota
   @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
   total: number;
+
+  // 💰 NUEVO: Efectivo real que entró a la caja en este momento (Abono o Total)
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  amountPaid: number;
 
   @CreateDateColumn({ name: 'transaction_date', type: 'timestamp' })
   transactionDate: Date;
@@ -97,19 +105,26 @@ export class Transaction {
   @Column({ name: 'coupon_discount', type: 'decimal', precision: 12, scale: 2, nullable: true })
   couponDiscount: number;
 
+  // 🛒 NUEVO: ¿En qué turno de caja se cobró esto?
+  @Column({ name: 'cash_register_id', nullable: true })
+  cashRegisterId: string;
+
+  @ManyToOne(() => CashRegister)
+  @JoinColumn({ name: 'cash_register_id' })
+  cashRegister: CashRegister;
+
   // RELACIONES
   @OneToMany(() => TransactionContent, (content) => content.transaction, { cascade: true })
   contents: TransactionContent[];
 
   @ManyToOne(() => User, (user) => user.transactions)
-  @JoinColumn({ name: 'user_id' }) // Vincula la relación a la columna física user_id
+  @JoinColumn({ name: 'user_id' })
   user: User;
 
-  // 👤 ID físico del cliente (Opcional, porque las ventas rápidas no ocupan cliente)
+  // 👤 ID físico del cliente
   @Column({ name: 'customer_id', nullable: true })
   customerId: number;
 
-  // Relación con el Customer
   @ManyToOne(() => Customer, (customer) => customer.transactions)
   @JoinColumn({ name: 'customer_id' })
   customer: Customer;
@@ -120,17 +135,17 @@ export class TransactionContent {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ name: 'transaction_id' }) // Columna física para el enlace al padre
+  @Column({ name: 'transaction_id' })
   transactionId: number;
 
-  @Column({ name: 'product_id' }) // Columna física para el enlace al producto
+  @Column({ name: 'product_id' })
   productId: number;
 
   @Column('decimal', { precision: 12, scale: 2, default: 0 })
   quantity: number;
 
   @Column({ type: 'decimal', precision: 12, scale: 2 })
-  price: number; // Snapshot del precio al momento de venta
+  price: number;
 
   // RELACIONES
   @ManyToOne(() => Product, { eager: true })

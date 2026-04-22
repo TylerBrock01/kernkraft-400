@@ -15,7 +15,7 @@ import { AdjustmentReason, StockAdjustment } from '../stock-adjustments/entities
 import { RefundSaleDto } from './dto/refund-sale.dto';
 import { CashRegister, RegisterStatus } from '../cash-registers/entities/cash-register.entity';
 import { Coupon } from '../coupons/entities/coupon.entity';
-import { CashMovement, CashMovementType } from '../cash-movements/entities/cash-movement.entity';
+import { CashMovement, CashMovementCategory, CashMovementType } from '../cash-movements/entities/cash-movement.entity';
 import { ActiveUser } from '../auth/classes/active-user.class';
 import { PLAN_LIMITS } from '../business/config/plan-limits.config';
 
@@ -30,8 +30,9 @@ export class TransactionsService {
     private readonly cashRegisterRepository: Repository<CashRegister>,
 
   ) {}
-  async create(createTransactionDto: CreateTransactionDto, user: ActiveUser) { // <--- 2 parámetros
-    const businessId = user.businessId; // <--- Lo extraemos aquí adentro
+
+  async create(createTransactionDto: CreateTransactionDto, user: ActiveUser) {
+    const businessId = user.businessId;
 
     if (!user?.id) {
       throw new BadRequestException('Error crítico: El vendedor no está identificado en el sistema.');
@@ -40,14 +41,12 @@ export class TransactionsService {
     // ✨ 0. EL MURO DE PAGO (Cronómetro Mensual)
     const maxTransactions = PLAN_LIMITS[user.plan].maxTransactions;
 
-    // Si el plan es LITE (0), no tiene acceso al Punto de Venta
     if (maxTransactions === 0) {
       throw new ForbiddenException(
         'El módulo de Punto de Venta no está incluido en tu plan LITE. Haz upgrade a STARTER para comenzar a cobrar.'
       );
     }
 
-    // Si no es ilimitado, contamos las ventas del mes en curso
     if (maxTransactions <= 500) {
       const date = new Date();
       const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
@@ -62,7 +61,7 @@ export class TransactionsService {
 
       if (currentMonthTransactions >= maxTransactions) {
         throw new ForbiddenException(
-          `Límite alcanzado: Tu plan (${user.plan}) permite máximo ${maxTransactions} ventas al mes. Haz upgrade a PRO.`
+          `Límite alcanzado: Tu plan permite máximo ${maxTransactions} ventas al mes. Haz upgrade a PRO.`
         );
       }
     }
@@ -78,16 +77,17 @@ export class TransactionsService {
       const productInDb = dbProducts.find(p => p.id === item.productId);
 
       if (!productInDb) {
-        throw new NotFoundException(`El producto con ID ${item.productId} no existe en este negocio.`);
+        throw new NotFoundException(`El producto con ID ${item.productId} no existe.`);
       }
 
       if (productInDb.stock < item.quantity) {
         throw new BadRequestException(
-          `¡Stock Insuficiente! Solo tienes ${productInDb.stock} unidades de "${productInDb.name}" disponibles, pero intentas procesar ${item.quantity}.`
+          `¡Stock Insuficiente! Solo tienes ${productInDb.stock} unidades de "${productInDb.name}".`
         );
       }
     }
 
+    // 🛡️ 2. VALIDACIÓN DE TURNO DE CAJA (El candado financiero)
     const openShift = await this.cashRegisterRepository.findOne({
       where: {
         userId: user.id,
@@ -98,39 +98,29 @@ export class TransactionsService {
 
     if (!openShift) {
       throw new BadRequestException(
-        'Operación denegada: Debes abrir tu turno de caja (Cash Register) antes de procesar ventas o rentas.'
+        'Operación denegada: Debes abrir tu turno de caja antes de procesar ventas o rentas.'
       );
     }
 
-    // ⛺ VALIDACIÓN PREVIA DE RENTA
+    // ⛺ 3. REGLAS DE NEGOCIO (Rentas y PickUps)
     const isRental = createTransactionDto.type === TransactionType.RENTAL;
+    const isSalePickUp = createTransactionDto.type === TransactionType.SALE && !!createTransactionDto.returnDate;
 
     if (isRental){
       if (!createTransactionDto.depositAmount){
-        throw new BadRequestException('Las rentas exigen deposito (depositAmount).');
+        throw new BadRequestException('Las rentas exigen depósito de garantía (depositAmount).');
       }
-
       if (!createTransactionDto.returnDate) {
-        throw new BadRequestException(`Las rentas exigen una fecha de devolución valida ${createTransactionDto.returnDate}.`);
+        throw new BadRequestException('Las rentas exigen una fecha de devolución válida.');
       }
-      createTransactionDto.status = TransactionStatus.PENDING;
     }
 
-    // VALIDACIÓN PREVIA DE PickUp
-    const isSalePickUp: boolean = createTransactionDto.type === TransactionType.SALE && !!createTransactionDto.returnDate;
-
-    if (isSalePickUp) {
-      // if (createTransactionDto.customerId){
-      //   throw new BadRequestException('La preventa exigen un cliente valido.');
-      // }
-      createTransactionDto.status = TransactionStatus.PAID; //Pagado pero no entregado
-    }
-
+    // 🚀 4. INICIA LA TRANSACCIÓN DE BASE DE DATOS (Manejador Seguro)
     return await this.transactionRepository.manager.transaction(async (manager) => {
-      let total = 0;
+      let subtotal = 0;
       const itemsParaProcesar = [];
 
-      // 1. ESCANEO DE PRODUCTOS
+      // ESCANEO DE PRODUCTOS
       for (const item of createTransactionDto.contents) {
         const product = await manager.findOne(Product, {
           where: { id: item.productId, businessId: businessId }
@@ -140,104 +130,113 @@ export class TransactionsService {
           if (!product) throw new NotFoundException(`Producto #${item.productId} no disponible`);
           if (item.quantity > product.stock) throw new BadRequestException(`Stock insuficiente para: ${product.name}`);
         }
-        total += Number(product.price) * item.quantity;
+
+        subtotal += Number(product.price) * item.quantity;
         itemsParaProcesar.push({ product, quantity: item.quantity });
       }
 
-      // 2. LÓGICA DE CUPONES
+      // LÓGICA DE CUPONES
       let couponName = null;
       let couponDiscount = 0;
 
       if (createTransactionDto.coupon) {
         const coupon = await manager.findOne(Coupon, {
-          where: {
-            name: createTransactionDto.coupon,
-            businessId: businessId
-          }
+          where: { name: createTransactionDto.coupon, businessId: businessId }
         });
 
-        if (!coupon) throw new BadRequestException(`El cupón "${createTransactionDto.coupon}" no existe en este negocio.`);
+        if (!coupon) throw new BadRequestException(`El cupón "${createTransactionDto.coupon}" no existe.`);
         if (!coupon.isActive) throw new BadRequestException('Este cupón ha sido desactivado manualmente.');
         if (new Date() > coupon.expirationDate) throw new BadRequestException('El cupón ha expirado.');
-        if (coupon.limit > 0 && coupon.used >= coupon.limit) throw new BadRequestException('El cupón alcanzó su límite de usos permitidos.');
-        if (total < coupon.minPurchase) throw new BadRequestException(`Este cupón requiere una compra mínima de $${coupon.minPurchase}.`);
+        if (coupon.limit > 0 && coupon.used >= coupon.limit) throw new BadRequestException('Límite de usos alcanzado.');
+        if (subtotal < coupon.minPurchase) throw new BadRequestException(`Compra mínima de $${coupon.minPurchase} requerida.`);
 
-        if (coupon.isPercentage) {
-          couponDiscount = total * (Number(coupon.discount) / 100);
-        } else {
-          couponDiscount = Number(coupon.discount);
-        }
+        couponDiscount = coupon.isPercentage ? subtotal * (Number(coupon.discount) / 100) : Number(coupon.discount);
+        if (couponDiscount > subtotal) couponDiscount = subtotal;
 
-        if (couponDiscount > total) {
-          couponDiscount = total;
-        }
-
-        total -= couponDiscount;
         couponName = coupon.name;
-
         await manager.increment(Coupon, { id: coupon.id }, 'used', 1);
       }
 
+      // MATEMÁTICAS FINANCIERAS (A prueba de balas)
       const deposit = isRental ? (createTransactionDto.depositAmount || 0) : 0;
+      const total = subtotal - couponDiscount;          // Esto es tu Revenue Real (Ganancia)
+      const grandTotal = total + deposit;               // Esto es el físico que te deben entregar
 
-      // 3. CREAR CABECERA DE LA TRANSACCIÓN
+      // ¿Cuánto nos dio el cliente realmente en la mano?
+      // Si el front no manda amountPaid, asumimos que pagó todo completo.
+      const amountPaid = createTransactionDto.amountPaid !== undefined
+        ? createTransactionDto.amountPaid
+        : grandTotal;
+
+      // DETECCIÓN DE FIADO (Abonos)
+      let finalStatus = createTransactionDto.status || TransactionStatus.COMPLETED;
+
+      if (amountPaid < grandTotal) {
+        finalStatus = TransactionStatus.PARTIAL; // Queda a deber
+      } else if (isSalePickUp && finalStatus !== TransactionStatus.PARTIAL) {
+        finalStatus = TransactionStatus.PAID;    // Pagado pero no entregado
+      } else if (isRental && finalStatus !== TransactionStatus.PARTIAL) {
+        finalStatus = TransactionStatus.PENDING; // Rentado, en curso
+      }
+
+      // CREAR CABECERA DE LA TRANSACCIÓN
       const transaction = manager.create(Transaction, {
         businessId: businessId,
         userId: user.id,
+        cashRegisterId: openShift.id, // 👈 ANCLAJE 1: Directo a la caja abierta
         type: createTransactionDto.type,
         customerId: createTransactionDto.customerId,
         returnDate: createTransactionDto.returnDate,
-        depositAmount: createTransactionDto.depositAmount || 0,
+        depositAmount: deposit,
         total: total,
+        amountPaid: amountPaid,       // 👈 ANCLAJE 2: Lo que entra al corte de caja y a la gráfica
         coupon: couponName,
         couponDiscount: couponDiscount,
-        status: createTransactionDto.status,
+        status: finalStatus,
         paymentMethod: createTransactionDto.paymentMethod || PaymentMethod.CASH,
-        rentalStatus: createTransactionDto.type === TransactionType.RENTAL
-          ? RentalStatus.OUT
-          : isSalePickUp?
-            RentalStatus.UNFULFILLED
-            : null,
+        rentalStatus: isRental ? RentalStatus.OUT : (isSalePickUp ? RentalStatus.UNFULFILLED : null),
       });
 
       const savedTransaction = await manager.save(transaction);
 
-      // 4. CREAR DETALLES Y BAJAR STOCK
+      // CREAR DETALLES Y BAJAR STOCK
       for (const item of itemsParaProcesar) {
         await manager.decrement(Product, { id: item.product.id }, "stock", item.quantity);
 
-        const content = manager.create(TransactionContent, {
+        await manager.save(manager.create(TransactionContent, {
           transactionId: savedTransaction.id,
           productId: item.product.id,
           quantity: item.quantity,
           price: item.product.price
-        });
-
-        await manager.save(content);
+        }));
       }
 
-      // 5. CÁLCULO FINAL PARA EL CAJERO
-      const grandTotal = total - couponDiscount + deposit;
-
-      if (transaction.depositAmount > 0) {
+      // REGISTRO DE DEPÓSITO EN MOVIMIENTOS DE CAJA
+      if (deposit > 0 && amountPaid >= deposit) {
         await manager.save(manager.create(CashMovement, {
           businessId,
           userId: user.id,
-          amount: transaction.depositAmount,
+          cashRegisterId: openShift.id, // 👈 ANCLAJE 3: El movimiento también sabe a qué caja va
+          amount: deposit,
           type: CashMovementType.IN,
-          reason: `Depósito Recibido (Contrato #${transaction.id})`
+          reason: `Depósito Recibido (Contrato #${savedTransaction.id})`,
+          category: CashMovementCategory.OTHER
         }));
       }
 
       return {
-        message: isRental ? 'Renta activa. Equipo fuera de almacén.' : 'Venta procesada. Mainframe sincronizado.',
+        message: finalStatus === TransactionStatus.PARTIAL
+          ? 'Abono registrado. Pendiente de liquidar.'
+          : (isRental ? 'Renta activa. Equipo entregado.' : 'Venta procesada. Mainframe sincronizado.'),
         transactionId: savedTransaction.id,
         type: savedTransaction.type,
         financials: {
-          subtotal: total,
+          subtotal: subtotal,
           discount: couponDiscount,
           depositRetained: deposit,
-          grandTotalToCharge: grandTotal
+          totalSale: total,
+          amountReceived: amountPaid,
+          debtRemaining: grandTotal - amountPaid
         },
         returnDate: savedTransaction.returnDate
       };
@@ -293,7 +292,6 @@ export class TransactionsService {
 
   async findOne(id: number) {
     const transaction = await this.transactionRepository.findOne({where :{ id},relations: {contents:true}})
-    console.log(transaction);
     if(!transaction){
       throw new NotFoundException(`Transaction #${id} not found`)
     }
@@ -632,7 +630,6 @@ export class TransactionsService {
     };
   }
 
-  // Mapeo limpio para no enviar la base de datos entera al frontend
   private mapOperationData(tx: Transaction) {
     return {
       id: tx.id,
