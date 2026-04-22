@@ -12,6 +12,7 @@ import { BusinessActiveGuard } from '../auth/guards/business-active.guard';
 import { PlanGuard } from '../auth/guards/plan.guard';
 import { ActiveUser } from '../auth/classes/active-user.class';
 import type { Response } from 'express'; // 👈 ESTA ES LA CLAVE
+export type Timeframe = 'daily' | 'weekly' | 'monthly' | 'yearly';
 
 @Controller('analytics')
 @Roles(Role.SUPER_ADMIN,Role.ADMIN) // La analítica suele ser solo para el dueño
@@ -20,40 +21,50 @@ import type { Response } from 'express'; // 👈 ESTA ES LA CLAVE
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
-  @Get('weekly-snapshot')
-  async getWeekly(@GetUser() user: ActiveUser) {
-    return this.analyticsService.getWeeklySnapshot(user);
-  }
-  @Get('investor')
-  getInvestorMetrics(@GetUser() user: ActiveUser) {
-    return this.analyticsService.getInvestorMetrics(user);
-  }
-
-  @Get('daily-revenue')
-  async getDailyRevenue(@GetUser() user: ActiveUser) {
-    // Obtenemos la suma
-    const total = await this.analyticsService.getDailyRevenue(user);
-
-    // Lo mandamos en un JSON limpio
-    return {
-      date: new Date().toISOString(),
-      revenue: total
-    };
-  }
-
   @Get('financial-pulse')
-  async getDailyFinancialPulse(@GetUser() user: ActiveUser) {
-    // 1. Aislamiento Multi-Tenant (SaaS):
-    // Le pasamos estrictamente el businessId del usuario logueado para que
-    // la frutería jamás pueda ver los números de la agencia de rentas.
-    const pulseData = await this.analyticsService.getCompleteFinancialPulse(user);
+  async getFinancialPulse(
+    @GetUser() user: ActiveUser,
+    @Query('period') period?: Timeframe,
+  ) {
+    const timeframe = period || 'daily'; // Default a Hoy
 
-    // 2. Empaquetado Limpio para el Frontend
+    const pulseData = await this.analyticsService.getFinancialPulse(
+      user.businessId,
+      timeframe
+    );
+
     return {
       timestamp: new Date().toISOString(),
       businessId: user.businessId,
-      data: pulseData // Aquí va { revenue, operatingExpenses, waste, netProfit }
+      period: timeframe,
+      data: pulseData
     };
+  }
+
+  // 🕯️ 2. VOLATILIDAD Y VELAS JAPONESAS (OHLC)
+  @Get('ohlc')
+  async getOHLC(
+    @GetUser() user: ActiveUser,
+    @Query('period') period?: Timeframe,
+  ) {
+    const timeframe = period || 'daily';
+
+    const ohlcData = await this.analyticsService.getOHLC(
+      user.businessId,
+      timeframe
+    );
+
+    return {
+      businessId: user.businessId,
+      period: timeframe,
+      data: ohlcData
+    };
+  }
+
+  // 💼 3. MÉTRICAS MACRO (Solo para el Dueño)
+  @Get('investor')
+  async getInvestorMetrics(@GetUser() user: ActiveUser) {
+    return this.analyticsService.getInvestorMetrics(user.businessId);
   }
 
   @Get('export/csv')
@@ -69,24 +80,4 @@ export class AnalyticsController {
     return res.status(200).send(csvData);
   }
 
-  @Get('ohlc/daily')
-  async getDailyOHLC(
-    @GetUser() user: ActiveUser,
-    @Query('year') yearStr?: string,
-    @Query('month') monthStr?: string,
-  ) {
-    const now = new Date();
-
-    // Si no mandan fecha, tomamos el mes y año actual
-    const year = yearStr ? parseInt(yearStr, 10) : now.getFullYear();
-    const month = monthStr ? parseInt(monthStr, 10) : now.getMonth() + 1;
-
-    const ohlcData = await this.analyticsService.getDailyOHLC(user.businessId, year, month);
-
-    return {
-      businessId: user.businessId,
-      period: { year, month },
-      data: ohlcData
-    };
-  }
 }
