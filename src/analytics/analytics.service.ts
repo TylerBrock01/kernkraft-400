@@ -491,4 +491,64 @@ export class AnalyticsService {
     return [header, ...rows].join('\n');
   }
 
+  async getDailyOHLC(businessId: string, year: number, month: number) {
+    // 1. Definimos las fronteras del mes
+    // Nota: en JS los meses van de 0 a 11, por eso restamos 1.
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+
+    // 2. Extracción Cruda (Ordenada por el tiempo)
+    const transactions = await this.transactionRepository
+      .createQueryBuilder('t')
+      .select('t.transactionDate', 'date')
+      // 🛡️ ESCUDO CONTABLE: Protegemos la gráfica restando el depósito
+      .addSelect('(t.total - COALESCE(t.depositAmount, 0))', 'netTicket')
+      .where('t.businessId = :businessId', { businessId })
+      .andWhere('t.status = :status', { status: TransactionStatus.COMPLETED })
+      .andWhere('t.transactionDate >= :startDate AND t.transactionDate <= :endDate', {
+        startDate,
+        endDate
+      })
+      .orderBy('t.transactionDate', 'ASC') // 👈 CRÍTICO: Cronología perfecta
+      .getRawMany();
+
+    // 3. La Fábrica de Velas (Lógica en Memoria RAM)
+    const ohlcMap = new Map<string, any>();
+
+    for (const t of transactions) {
+      // Formateamos la fecha a 'YYYY-MM-DD' para que sirva de llave (Key)
+      const dayKey = new Date(t.date).toISOString().split('T')[0];
+      const ticketValue = parseFloat(t.netTicket);
+
+      if (!ohlcMap.has(dayKey)) {
+        // 🌅 APERTURA: Si es el primer ticket del día, nace la vela
+        ohlcMap.set(dayKey, {
+          date: dayKey,
+          open: ticketValue,   // El primer ticket
+          high: ticketValue,
+          low: ticketValue,
+          close: ticketValue,  // Hasta ahora, es el último también
+          volume: 1            // Número de mesas/ventas atendidas
+        });
+      } else {
+        // 📈 FLUCTUACIÓN: Actualizamos la vela existente
+        const candle = ohlcMap.get(dayKey);
+
+        // ¿Rompimos récord máximo o mínimo en el día?
+        if (ticketValue > candle.high) candle.high = ticketValue;
+        if (ticketValue < candle.low) candle.low = ticketValue;
+
+        // 🌃 CIERRE: Como vienen en orden ASC, siempre sobreescribimos
+        // el 'close'. Al final del bucle, quedará el último ticket real.
+        candle.close = ticketValue;
+
+        // Sumamos al volumen de tráfico de ese día
+        candle.volume += 1;
+      }
+    }
+
+    // 4. Transformamos el Mapa a un Array limpio para tu Frontend
+    return Array.from(ohlcMap.values());
+  }
+
 }

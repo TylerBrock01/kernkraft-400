@@ -1,4 +1,4 @@
-import { Controller, Get, Res, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, Res, UseGuards } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -67,5 +67,26 @@ export class AnalyticsController {
     res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
 
     return res.status(200).send(csvData);
+  }
+
+  @Get('ohlc/daily')
+  async getDailyOHLC(
+    @GetUser() user: ActiveUser,
+    @Query('year') yearStr?: string,
+    @Query('month') monthStr?: string,
+  ) {
+    const now = new Date();
+
+    // Si no mandan fecha, tomamos el mes y año actual
+    const year = yearStr ? parseInt(yearStr, 10) : now.getFullYear();
+    const month = monthStr ? parseInt(monthStr, 10) : now.getMonth() + 1;
+
+    const ohlcData = await this.analyticsService.getDailyOHLC(user.businessId, year, month);
+
+    return {
+      businessId: user.businessId,
+      period: { year, month },
+      data: ohlcData
+    };
   }
 }
