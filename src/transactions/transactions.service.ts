@@ -220,7 +220,7 @@ export class TransactionsService {
           amount: deposit,
           type: CashMovementType.IN,
           reason: `Depósito Recibido (Contrato #${savedTransaction.id})`,
-          category: CashMovementCategory.OTHER
+          category: CashMovementCategory.DEPOSIT
         }));
       }
 

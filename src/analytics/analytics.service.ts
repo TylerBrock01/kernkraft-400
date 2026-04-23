@@ -91,13 +91,14 @@ export class AnalyticsService {
     const movements = await this.cashMovementRepository.find({
       where: {
         businessId,
-        type: CashMovementType.OUT,
+        type: In([CashMovementType.OUT, CashMovementType.IN]),
         date: Between(startDate, endDate),
       }
     });
 
     let operatingExpenses = 0;
     let cashWaste = 0; // Renombrado para mayor claridad
+    let deposit = 0;
     movements.forEach(m => {
       if (m.category === CashMovementCategory.OPERATING_EXPENSE) {
         operatingExpenses += Number(m.amount);
@@ -105,6 +106,8 @@ export class AnalyticsService {
         cashWaste += Number(m.amount);
       } else if (m.category === CashMovementCategory.DEPOSIT_REFUND) {
         revenue -= Number(m.amount);
+      }else if (m.category === CashMovementCategory.DEPOSIT) {
+        deposit += Number(m.amount);
       }
     });
 
