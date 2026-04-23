@@ -2,11 +2,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, In, Repository } from 'typeorm';
-import { User } from '../users/entities/user.entity';
 import { Transaction, TransactionContent, TransactionStatus } from '../transactions/entities/transaction.entity';
-import { AdjustmentReason, StockAdjustment } from '../stock-adjustments/entities/stock-adjustment.entity';
+import { StockAdjustment } from '../stock-adjustments/entities/stock-adjustment.entity';
 import { CashMovement, CashMovementCategory, CashMovementType } from '../cash-movements/entities/cash-movement.entity';
-import { ActiveUser } from '../auth/classes/active-user.class';
 import { Timeframe } from './analytics.controller';
 
 @Injectable()
