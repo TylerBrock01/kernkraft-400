@@ -59,7 +59,7 @@ export class AnalyticsService {
     const transactions = await this.transactionRepository.find({
       where: {
         businessId,
-        status: In([TransactionStatus.COMPLETED, TransactionStatus.PARTIAL]),
+        status: In([TransactionStatus.COMPLETED, TransactionStatus.PARTIAL,TransactionStatus.PAID,TransactionStatus.PENDING]),
         transactionDate: Between(startDate, endDate),
       },
     });
