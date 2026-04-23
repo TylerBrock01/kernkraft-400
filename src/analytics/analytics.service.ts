@@ -53,8 +53,9 @@ export class AnalyticsService {
   async getFinancialPulse(businessId: string, period: Timeframe) {
     const { startDate, endDate } = this.getDateBoundaries(period);
 
+    // --------------------------------------------------------
     // 1. INGRESOS BRUTOS REALES (El dinero que tocó el cajón)
-    // Traemos tanto ventas completadas como ABONOS (PARTIAL)
+    // --------------------------------------------------------
     const transactions = await this.transactionRepository.find({
       where: {
         businessId,
@@ -63,12 +64,11 @@ export class AnalyticsService {
       },
     });
 
-    // 🧠 MAGIA FINANCIERA: Ya no usamos el total ni restamos el depósito.
-    // Usamos EXACTAMENTE lo que pagaron (amountPaid).
     const revenue = transactions.reduce((sum, t) => sum + Number(t.amountPaid || 0), 0);
 
-    // 2. EXTRACCIÓN DE GASTOS Y MERMAS (La Cascada)
-    // Buscamos todas las salidas de dinero (OUT) en esa misma fecha
+    // --------------------------------------------------------
+    // 2. EXTRACCIÓN DE GASTOS Y MERMAS DE EFECTIVO
+    // --------------------------------------------------------
     const movements = await this.cashMovementRepository.find({
       where: {
         businessId,
@@ -78,26 +78,51 @@ export class AnalyticsService {
     });
 
     let operatingExpenses = 0;
-    let waste = 0;
+    let cashWaste = 0; // Renombrado para mayor claridad
 
-    // Clasificamos a dónde se fue el dinero
     movements.forEach(m => {
       if (m.category === CashMovementCategory.OPERATING_EXPENSE) {
         operatingExpenses += Number(m.amount);
       } else if (m.category === CashMovementCategory.WASTE_LOSS) {
-        waste += Number(m.amount);
+        cashWaste += Number(m.amount);
       }
-      // Ignoramos DEPOSIT_REFUND y CAPITAL_WITHDRAWAL porque contablemente
-      // no son gastos operativos del negocio.
     });
 
-    // 3. UTILIDAD NETA LIBRE
-    const netProfit = revenue - operatingExpenses - waste;
+    // --------------------------------------------------------
+    // 3. EXTRACCIÓN DE MERMAS FÍSICAS (El Inventario Destruido)
+    // --------------------------------------------------------
+    // Traemos los ajustes de inventario que representan pérdidas
+    const stockAdjustments = await this.adjustmentRepository.find({
+      where: {
+        businessId,
+        // IMPORTANTE: Asegúrate de que el campo de fecha coincida con tu entidad (puede ser 'date' o 'createdAt')
+        createdAt: Between(startDate, endDate),
+        // type: 'LOSS' // 👈 Descomenta si tienes un Enum para diferenciar pérdidas de "entradas por inventario"
+      },
+      relations: ['product'] // 👈 CRÍTICO: Necesitamos el producto para saber cuánto dinero se perdió
+    });
+
+    let inventoryWaste = 0;
+
+    stockAdjustments.forEach(adj => {
+      // Multiplicamos la cantidad perdida por el precio del producto
+      // Usamos Math.abs() por si guardas los ajustes como números negativos (ej. -2)
+      const costOfLostItem = Math.abs(Number(adj.quantity)) * Number(adj.product.price);
+      inventoryWaste += costOfLostItem;
+    });
+
+    // --------------------------------------------------------
+    // 4. EL CÁLCULO FINAL (La Utilidad Real)
+    // --------------------------------------------------------
+    // Sumamos la merma de billetes (robos/faltantes) + merma de productos
+    const totalWaste = cashWaste + inventoryWaste;
+
+    const netProfit = revenue - operatingExpenses - totalWaste;
 
     return {
       revenue,
       operatingExpenses,
-      waste,
+      waste: totalWaste, // 👈 Mandamos el total combinado al Frontend
       netProfit,
     };
   }
@@ -420,7 +445,6 @@ export class AnalyticsService {
     return [header, ...rows].join('\n');
   }
 
-// 🕯️ MOTOR OHLC: Análisis de Volatilidad Dinámico (Wall Street Style)
   async getOHLC(businessId: string, period: Timeframe) {
     // 1. Usamos nuestra nueva calculadora centralizada
     const { startDate, endDate } = this.getDateBoundaries(period);
