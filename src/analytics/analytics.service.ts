@@ -158,39 +158,34 @@ export class AnalyticsService {
     const startOfPreviousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const endOfPreviousMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
 
+    // 🛡️ CONSTANTE DE ESTATUS VALIDOS
+    const validStatuses = ['COMPLETED', 'PARTIAL', 'PAID', 'PENDING'];
+
     // 📊 2. EXTRACCIÓN DE DATOS (MES ACTUAL)
-    // 🛡️ REFACTOR: Restamos los depósitos de los ingresos
     const currentMonthStats = await this.transactionRepository
       .createQueryBuilder('t')
-      .select('SUM(t.total - COALESCE(t.depositAmount, 0))', 'revenue')
+      // 🛡️ FIX 1: Usamos amountPaid, no total
+      .select('SUM(t.amountPaid - COALESCE(t.depositAmount, 0))', 'revenue')
       .where('t.businessId = :businessId', { businessId })
-      .andWhere('t.status = :status', { status: 'COMPLETED' })
+      // 🛡️ FIX 2: Incluimos todos los estatus que generan dinero
+      .andWhere('t.status IN (:...statuses)', { statuses: validStatuses })
       .andWhere('t.transactionDate >= :startDate', { startDate: startOfCurrentMonth })
       .getRawOne();
 
     // 📉 3. EXTRACCIÓN DE DATOS (MES ANTERIOR)
-    // 🛡️ REFACTOR: Restamos los depósitos de los ingresos
     const previousMonthStats = await this.transactionRepository
       .createQueryBuilder('t')
-      .select('SUM(t.total - COALESCE(t.depositAmount, 0))', 'revenue')
+      .select('SUM(t.amountPaid - COALESCE(t.depositAmount, 0))', 'revenue')
       .where('t.businessId = :businessId', { businessId })
-      .andWhere('t.status = :status', { status: 'COMPLETED' })
+      .andWhere('t.status IN (:...statuses)', { statuses: validStatuses })
       .andWhere('t.transactionDate >= :startDate AND t.transactionDate <= :endDate', {
         startDate: startOfPreviousMonth,
         endDate: endOfPreviousMonth
       })
       .getRawOne();
 
-    const currentRevenue = parseFloat(currentMonthStats.revenue || 0);
-    const previousRevenue = parseFloat(previousMonthStats.revenue || 0);
-
-    // 🧮 4. FÓRMULA FINANCIERA DEL MoM
-    let growthPercentage = 0;
-    if (previousRevenue > 0) {
-      growthPercentage = ((currentRevenue - previousRevenue) / previousRevenue) * 100;
-    } else if (currentRevenue > 0) {
-      growthPercentage = 100;
-    }
+    let currentRevenue = parseFloat(currentMonthStats.revenue || 0);
+    let previousRevenue = parseFloat(previousMonthStats.revenue || 0);
 
     // --- 🏆 NUEVO BLOQUE: RENDIMIENTO POR ACTIVO (ROI) ---
     const topAssets = await this.contentRepository
@@ -203,7 +198,7 @@ export class AnalyticsService {
       .addSelect('SUM(tc.quantity)', 'timesRentedOrSold')
       .addSelect('SUM(tc.quantity * tc.price)', 'grossRevenue')
       .where('t.businessId = :businessId', { businessId })
-      .andWhere('t.status = :status', { status: 'COMPLETED' })
+      .andWhere('t.status IN (:...statuses)', { statuses: validStatuses })
       .groupBy('p.id')
       .addGroupBy('p.name')
       .addGroupBy('p.price')
@@ -251,16 +246,14 @@ export class AnalyticsService {
     }
 
     // --- 👥 NUEVO BLOQUE: VALOR DEL CLIENTE (LTV) ---
-    // 7. Buscamos a los clientes más valiosos de todos los tiempos (Top 3)
     const topCustomers = await this.transactionRepository
       .createQueryBuilder('t')
       .leftJoin('t.customer', 'c')
       .select('c.name', 'customerName')
-      // 🛡️ REFACTOR: El gasto del cliente no debe incluir los depósitos que se le van a devolver
-      .addSelect('SUM(t.total - COALESCE(t.depositAmount, 0))', 'totalSpent')
+      .addSelect('SUM(t.amountPaid - COALESCE(t.depositAmount, 0))', 'totalSpent') // 🛡️ FIX
       .addSelect('COUNT(t.id)', 'transactionCount')
       .where('t.businessId = :businessId', { businessId })
-      .andWhere('t.status = :status', { status: 'COMPLETED' })
+      .andWhere('t.status IN (:...statuses)', { statuses: validStatuses })
       .andWhere('t.customerId IS NOT NULL')
       .groupBy('c.id')
       .addGroupBy('c.name')
@@ -268,26 +261,23 @@ export class AnalyticsService {
       .limit(3)
       .getRawMany();
 
-    // 8. Calculamos qué porcentaje de las ventas viene de clientes registrados
-    // 🛡️ REFACTOR: Ventas puras para allTimeStats
     const allTimeStats = await this.transactionRepository
       .createQueryBuilder('t')
-      .select('SUM(t.total - COALESCE(t.depositAmount, 0))', 'totalRevenue')
+      .select('SUM(t.amountPaid - COALESCE(t.depositAmount, 0))', 'totalRevenue') // 🛡️ FIX
       .where('t.businessId = :businessId', { businessId })
-      .andWhere('t.status = :status', { status: 'COMPLETED' })
+      .andWhere('t.status IN (:...statuses)', { statuses: validStatuses })
       .getRawOne();
 
     const identifiedStats = await this.transactionRepository
       .createQueryBuilder('t')
-      .select('SUM(t.total - COALESCE(t.depositAmount, 0))', 'totalIdentified')
+      .select('SUM(t.amountPaid - COALESCE(t.depositAmount, 0))', 'totalIdentified') // 🛡️ FIX
       .where('t.businessId = :businessId', { businessId })
-      .andWhere('t.status = :status', { status: 'COMPLETED' })
+      .andWhere('t.status IN (:...statuses)', { statuses: validStatuses })
       .andWhere('t.customerId IS NOT NULL')
       .getRawOne();
 
     const totalAllTime = parseFloat(allTimeStats.totalRevenue || 0);
     const totalIdentified = parseFloat(identifiedStats.totalIdentified || 0);
-
     const loyaltyPercentage = totalAllTime > 0 ? (totalIdentified / totalAllTime) * 100 : 0;
 
     const customerInsights = {
@@ -299,15 +289,20 @@ export class AnalyticsService {
       }))
     };
 
-    // --- 🏦 NUEVO BLOQUE: GASTOS OPERATIVOS Y UTILIDAD NETA ---
-    // 10. Consultamos gastos (OUT) del mes actual y anterior
-    // 🛡️ REFACTOR: Añadimos "AND cm.category = 'OPERATING_EXPENSE'" para ignorar devoluciones
-    const operatingExpenses = await this.cashMovementRepository
+    // --- 🏦 NUEVO BLOQUE: GASTOS OPERATIVOS, MERMAS Y REEMBOLSOS ---
+    // 🛡️ FIX 3: Extraemos todo lo que afecta la utilidad real como en FinancialPulse
+    const financialMovements = await this.cashMovementRepository
       .createQueryBuilder('cm')
       .select(`
-      SUM(CASE WHEN cm.date >= :startCurrent AND cm.type = 'OUT' AND cm.category = 'OPERATING_EXPENSE' THEN cm.amount ELSE 0 END) as current_expenses,
-      SUM(CASE WHEN cm.date >= :startPrev AND cm.date <= :endPrev AND cm.type = 'OUT' AND cm.category = 'OPERATING_EXPENSE' THEN cm.amount ELSE 0 END) as previous_expenses
-    `)
+        SUM(CASE WHEN cm.date >= :startCurrent AND cm.category = 'OPERATING_EXPENSE' THEN cm.amount ELSE 0 END) as curr_exp,
+        SUM(CASE WHEN cm.date >= :startPrev AND cm.date <= :endPrev AND cm.category = 'OPERATING_EXPENSE' THEN cm.amount ELSE 0 END) as prev_exp,
+        
+        SUM(CASE WHEN cm.date >= :startCurrent AND cm.category = 'WASTE_LOSS' THEN cm.amount ELSE 0 END) as curr_waste,
+        SUM(CASE WHEN cm.date >= :startPrev AND cm.date <= :endPrev AND cm.category = 'WASTE_LOSS' THEN cm.amount ELSE 0 END) as prev_waste,
+        
+        SUM(CASE WHEN cm.date >= :startCurrent AND cm.category = 'DEPOSIT_REFUND' THEN cm.amount ELSE 0 END) as curr_refunds,
+        SUM(CASE WHEN cm.date >= :startPrev AND cm.date <= :endPrev AND cm.category = 'DEPOSIT_REFUND' THEN cm.amount ELSE 0 END) as prev_refunds
+      `)
       .setParameters({
         startCurrent: startOfCurrentMonth,
         startPrev: startOfPreviousMonth,
@@ -316,27 +311,30 @@ export class AnalyticsService {
       .where('cm.businessId = :businessId', { businessId })
       .getRawOne();
 
-    const currentExpenses = parseFloat(operatingExpenses.current_expenses || 0);
-    const previousExpenses = parseFloat(operatingExpenses.previous_expenses || 0);
+    // 10. MATEMÁTICA FINAL DE INGRESOS (Restando reembolsos de depósitos)
+    currentRevenue -= parseFloat(financialMovements.curr_refunds || 0);
+    previousRevenue -= parseFloat(financialMovements.prev_refunds || 0);
+
+    const currentExpenses = parseFloat(financialMovements.curr_exp || 0) + parseFloat(financialMovements.curr_waste || 0);
+    const previousExpenses = parseFloat(financialMovements.prev_exp || 0) + parseFloat(financialMovements.prev_waste || 0);
 
     // 11. MATEMÁTICA FINAL: Utilidad Neta (Lo que realmente va al bolsillo)
     const netProfitCurrent = currentRevenue - currentExpenses;
     const netProfitPrevious = previousRevenue - previousExpenses;
 
-    let netProfitGrowth = 0;
-    if (netProfitPrevious !== 0) {
-      netProfitGrowth = ((netProfitCurrent - netProfitPrevious) / Math.abs(netProfitPrevious)) * 100;
-    } else if (netProfitPrevious === 0 && netProfitCurrent > 0) {
-      netProfitGrowth = 100;
-    } else if (netProfitPrevious === 0 && netProfitCurrent < 0) {
-      netProfitGrowth = -100;
+    // 🧮 FÓRMULA FINANCIERA DEL MoM (Ahora con Ingresos Puros)
+    let growthPercentage = 0;
+    if (previousRevenue > 0) {
+      growthPercentage = ((currentRevenue - previousRevenue) / previousRevenue) * 100;
+    } else if (currentRevenue > 0) {
+      growthPercentage = 100;
     }
 
     const financialHealth = {
       monthlyExpenses: {
         current: currentExpenses,
         previous: previousExpenses,
-        label: 'Gastos Operativos (Luz, Renta, Insumos)'
+        label: 'Gastos y Mermas (Operación Total)'
       },
       netProfit: {
         amount: netProfitCurrent,
@@ -347,12 +345,12 @@ export class AnalyticsService {
     };
 
     // --- 💸 NUEVO BLOQUE: SALUD DEL FLUJO DE EFECTIVO ---
-    // 9. Calculamos cuánto dinero en caja NO es del negocio (Depósitos retenidos)
     const retainedCapitalStats = await this.transactionRepository
       .createQueryBuilder('t')
       .select('SUM(t.depositAmount)', 'retainedAmount')
       .where('t.businessId = :businessId', { businessId })
-      .andWhere('t.rentalStatus = :status', { status: 'OUT' })
+      // 🛡️ FIX: Solo nos importan los depósitos de rentas que siguen AFUERA o PENDIENTES
+      .andWhere('t.rentalStatus IN (:...rStatuses)', { rStatuses: ['OUT', 'UNFULFILLED'] })
       .getRawOne();
 
     const retainedCapital = parseFloat(retainedCapitalStats.retainedAmount || 0);
@@ -468,7 +466,6 @@ export class AnalyticsService {
     return [header, ...rows].join('\n');
   }
 
-  // 🕯️ MOTOR OHLC: Análisis de Volatilidad Dinámico (Wall Street Style)
   async getOHLC(businessId: string, period: Timeframe) {
     const { startDate, endDate } = this.getDateBoundaries(period);
 
@@ -478,13 +475,18 @@ export class AnalyticsService {
     const transactions = await this.transactionRepository
       .createQueryBuilder('t')
       .select('t.transactionDate', 'date')
-      // 🧠 MAGIA FINANCIERA: Usamos exactamente el efectivo recibido (amountPaid)
-      // Si fue un abono de $50, la vela registra una fluctuación de $50.
-      .addSelect('t.amountPaid', 'netTicket')
+      // 🛡️ EL ESCUDO CONTABLE: Restamos el depósito del efectivo recibido
+      // Así graficamos el valor real del ticket, no el pasivo temporal.
+      .addSelect('(t.amountPaid - COALESCE(t.depositAmount, 0))', 'netTicket')
       .where('t.businessId = :businessId', { businessId })
-      // 🛡️ INCLUIMOS ABONOS: Le decimos a TypeORM que traiga ambos estatus
+      // 🛡️ INCLUIMOS RENTAS Y ABONOS (Sincronía total con el Pulso Financiero)
       .andWhere('t.status IN (:...statuses)', {
-        statuses: [TransactionStatus.COMPLETED, TransactionStatus.PARTIAL]
+        statuses: [
+          TransactionStatus.COMPLETED,
+          TransactionStatus.PARTIAL,
+          TransactionStatus.PAID,     // Pick-Ups pagados
+          TransactionStatus.PENDING   // Rentas activas
+        ]
       })
       .andWhere('t.transactionDate >= :startDate AND t.transactionDate <= :endDate', {
         startDate,
@@ -494,7 +496,7 @@ export class AnalyticsService {
       .getRawMany();
 
     // --------------------------------------------------------
-    // 3. La Fábrica de Velas Inteligente (Se queda EXACTAMENTE igual)
+    // 3. La Fábrica de Velas Inteligente
     // --------------------------------------------------------
     const ohlcMap = new Map<string, any>();
 
@@ -511,7 +513,8 @@ export class AnalyticsService {
         timeKey = dateObj.toISOString().split('T')[0];
       }
 
-      const ticketValue = parseFloat(t.netTicket);
+      // 🧠 Parseamos y aseguramos que no haya tickets negativos por errores raros
+      const ticketValue = Math.max(0, parseFloat(t.netTicket));
 
       if (!ohlcMap.has(timeKey)) {
         ohlcMap.set(timeKey, {
@@ -524,8 +527,10 @@ export class AnalyticsService {
         });
       } else {
         const candle = ohlcMap.get(timeKey);
+
         if (ticketValue > candle.high) candle.high = ticketValue;
         if (ticketValue < candle.low) candle.low = ticketValue;
+
         candle.close = ticketValue;
         candle.volume += 1;
       }
@@ -533,5 +538,4 @@ export class AnalyticsService {
 
     return Array.from(ohlcMap.values());
   }
-
 }
