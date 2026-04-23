@@ -103,6 +103,8 @@ export class AnalyticsService {
         operatingExpenses += Number(m.amount);
       } else if (m.category === CashMovementCategory.WASTE_LOSS) {
         cashWaste += Number(m.amount);
+      } else if (m.category === CashMovementCategory.DEPOSIT_REFUND) {
+        revenue -= Number(m.amount);
       }
     });
 

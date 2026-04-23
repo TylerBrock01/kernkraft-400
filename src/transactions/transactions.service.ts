@@ -398,7 +398,6 @@ export class TransactionsService {
         throw new BadRequestException(`Operación rechazada: No puedes cobrar una penalidad ($${penalty}) mayor al depósito retenido ($${transaction.depositAmount}).`);
       }
 
-      // ... después de calcular refundAmount y antes del manager.save(transaction) ...
       const refundAmount = transaction.depositAmount - penalty;
 
       // 🚨 REGISTRO AUTOMÁTICO EN EL LIBRO DE CAJA
@@ -408,6 +407,7 @@ export class TransactionsService {
           userId: user.id,
           amount: refundAmount,
           type: CashMovementType.OUT,
+          category: CashMovementCategory.DEPOSIT_REFUND,
           reason: `Devolución de depósito (Contrato #${transaction.id})`,
           date: new Date(),
         });
