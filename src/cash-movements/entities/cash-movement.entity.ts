@@ -13,6 +13,7 @@ export enum CashMovementCategory {
   OPERATING_EXPENSE = 'OPERATING_EXPENSE',   // Luz, agua, renta
   WASTE_LOSS = 'WASTE_LOSS',                 // Dinero perdido por mermas/robos/comida echada a perder
   DEPOSIT_REFUND = 'DEPOSIT_REFUND',         // Devolución de garantía (NO afecta ganancia)
+  DEPOSIT = 'DEPOSIT',
   CAPITAL_WITHDRAWAL = 'CAPITAL_WITHDRAWAL', // El dueño sacó dinero para irse a cenar
   OTHER = 'OTHER',
 }
