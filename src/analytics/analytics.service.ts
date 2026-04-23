@@ -59,13 +59,34 @@ export class AnalyticsService {
     const transactions = await this.transactionRepository.find({
       where: {
         businessId,
-        status: In([TransactionStatus.COMPLETED, TransactionStatus.PARTIAL,TransactionStatus.PAID,TransactionStatus.PENDING]),
+        status: In([
+          TransactionStatus.COMPLETED,
+          TransactionStatus.PARTIAL,
+          TransactionStatus.PAID,
+          TransactionStatus.PENDING // Rentas activas
+        ]),
         transactionDate: Between(startDate, endDate),
       },
     });
 
-    const revenue = transactions.reduce((sum, t) => sum + Number(t.amountPaid || 0), 0);
+    let revenue = 0;
+    let heldDeposits = 0; // 👈 NUEVO: El dinero intocable
 
+    transactions.forEach(t => {
+      const totalFisicoPagado = Number(t.amountPaid || 0);
+      const deposito = Number(t.depositAmount || 0);
+
+      // Contablemente, el depósito se cobra primero para asegurar el equipo.
+      // Lo que sobra es la verdadera ganancia (Ingreso Bruto)
+      const ingresoReal = Math.max(0, totalFisicoPagado - deposito);
+      revenue += ingresoReal;
+
+      // Si la transacción tiene un depósito y no ha sido devuelto (REFUNDED),
+      // lo sumamos a nuestra bolsa de dinero retenido.
+      if (deposito > 0 && t.status !== TransactionStatus.REFUNDED) {
+        heldDeposits += deposito;
+      }
+    });
     // --------------------------------------------------------
     // 2. EXTRACCIÓN DE GASTOS Y MERMAS DE EFECTIVO
     // --------------------------------------------------------
@@ -79,7 +100,6 @@ export class AnalyticsService {
 
     let operatingExpenses = 0;
     let cashWaste = 0; // Renombrado para mayor claridad
-
     movements.forEach(m => {
       if (m.category === CashMovementCategory.OPERATING_EXPENSE) {
         operatingExpenses += Number(m.amount);
@@ -116,7 +136,6 @@ export class AnalyticsService {
     // --------------------------------------------------------
     // Sumamos la merma de billetes (robos/faltantes) + merma de productos
     const totalWaste = cashWaste + inventoryWaste;
-
     const netProfit = revenue - operatingExpenses - totalWaste;
 
     return {
@@ -124,6 +143,7 @@ export class AnalyticsService {
       operatingExpenses,
       waste: totalWaste, // 👈 Mandamos el total combinado al Frontend
       netProfit,
+      heldDeposits
     };
   }
 
