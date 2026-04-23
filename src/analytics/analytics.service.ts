@@ -445,17 +445,24 @@ export class AnalyticsService {
     return [header, ...rows].join('\n');
   }
 
+  // 🕯️ MOTOR OHLC: Análisis de Volatilidad Dinámico (Wall Street Style)
   async getOHLC(businessId: string, period: Timeframe) {
-    // 1. Usamos nuestra nueva calculadora centralizada
     const { startDate, endDate } = this.getDateBoundaries(period);
 
-    // 2. Extracción Cruda (Ordenada por el tiempo)
+    // --------------------------------------------------------
+    // 2. EXTRACCIÓN CRUDA (Sincronizada con la Dona)
+    // --------------------------------------------------------
     const transactions = await this.transactionRepository
       .createQueryBuilder('t')
       .select('t.transactionDate', 'date')
-      .addSelect('(t.total - COALESCE(t.depositAmount, 0))', 'netTicket')
+      // 🧠 MAGIA FINANCIERA: Usamos exactamente el efectivo recibido (amountPaid)
+      // Si fue un abono de $50, la vela registra una fluctuación de $50.
+      .addSelect('t.amountPaid', 'netTicket')
       .where('t.businessId = :businessId', { businessId })
-      .andWhere('t.status = :status', { status: TransactionStatus.COMPLETED })
+      // 🛡️ INCLUIMOS ABONOS: Le decimos a TypeORM que traiga ambos estatus
+      .andWhere('t.status IN (:...statuses)', {
+        statuses: [TransactionStatus.COMPLETED, TransactionStatus.PARTIAL]
+      })
       .andWhere('t.transactionDate >= :startDate AND t.transactionDate <= :endDate', {
         startDate,
         endDate
@@ -463,32 +470,29 @@ export class AnalyticsService {
       .orderBy('t.transactionDate', 'ASC') // 👈 La cronología es intocable
       .getRawMany();
 
-    // 3. La Fábrica de Velas Inteligente
+    // --------------------------------------------------------
+    // 3. La Fábrica de Velas Inteligente (Se queda EXACTAMENTE igual)
+    // --------------------------------------------------------
     const ohlcMap = new Map<string, any>();
 
     for (const t of transactions) {
       const dateObj = new Date(t.date);
       let timeKey = '';
 
-      // 🧠 EL CEREBRO DE TIMEFRAMES: ¿De qué tamaño es la vela?
       if (period === 'daily') {
-        // Vista Micro (Hoy): Velas de 1 HORA. Ej: "2026-04-22 14:00"
-        dateObj.setMinutes(0, 0, 0); // Aplastamos minutos y segundos
+        dateObj.setMinutes(0, 0, 0);
         timeKey = dateObj.toISOString();
       } else if (period === 'yearly') {
-        // Vista Macro Extrema (Año): Velas de 1 MES. Ej: "2026-04"
         timeKey = dateObj.toISOString().split('T')[0].slice(0, 7);
       } else {
-        // Vista Normal (Semana / Mes): Velas de 1 DÍA. Ej: "2026-04-22"
         timeKey = dateObj.toISOString().split('T')[0];
       }
 
       const ticketValue = parseFloat(t.netTicket);
 
-      // Si es la primera transacción de esa hora/día/mes, nace la vela
       if (!ohlcMap.has(timeKey)) {
         ohlcMap.set(timeKey, {
-          date: timeKey, // ApexCharts lee esto automáticamente
+          date: timeKey,
           open: ticketValue,
           high: ticketValue,
           low: ticketValue,
@@ -496,13 +500,9 @@ export class AnalyticsService {
           volume: 1
         });
       } else {
-        // Si ya existe la vela, actualizamos su volatilidad
         const candle = ohlcMap.get(timeKey);
-
         if (ticketValue > candle.high) candle.high = ticketValue;
         if (ticketValue < candle.low) candle.low = ticketValue;
-
-        // Siempre sobreescribimos el cierre
         candle.close = ticketValue;
         candle.volume += 1;
       }
@@ -510,4 +510,5 @@ export class AnalyticsService {
 
     return Array.from(ohlcMap.values());
   }
+
 }
