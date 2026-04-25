@@ -150,7 +150,7 @@ export class AnalyticsService {
     };
   }
 
-  async getInvestorMetrics(businessId:string) {
+  async getInvestorMetrics(businessId: string) {
     const now = new Date();
 
     // 🗓️ 1. MATEMÁTICA DE CALENDARIO
@@ -158,36 +158,38 @@ export class AnalyticsService {
     const startOfPreviousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const endOfPreviousMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
 
-    // 🛡️ CONSTANTE DE ESTATUS VALIDOS
     const validStatuses = ['COMPLETED', 'PARTIAL', 'PAID', 'PENDING'];
 
-    // 📊 2. EXTRACCIÓN DE DATOS (MES ACTUAL)
-    const currentMonthStats = await this.transactionRepository
+    // 📊 2. EXTRACCIÓN DE DATOS (MES ACTUAL Y ANTERIOR)
+    // Usamos el 'total' puro de la transacción (subtotal - descuentos + penalizaciones),
+    // ignorando por completo la danza de los depósitos para proteger el mes a mes.
+    const revenueStats = await this.transactionRepository
       .createQueryBuilder('t')
-      // 🛡️ FIX 1: Usamos amountPaid, no total
-      .select('SUM(t.amountPaid - COALESCE(t.depositAmount, 0))', 'revenue')
-      .where('t.businessId = :businessId', { businessId })
-      // 🛡️ FIX 2: Incluimos todos los estatus que generan dinero
-      .andWhere('t.status IN (:...statuses)', { statuses: validStatuses })
-      .andWhere('t.transactionDate >= :startDate', { startDate: startOfCurrentMonth })
-      .getRawOne();
-
-    // 📉 3. EXTRACCIÓN DE DATOS (MES ANTERIOR)
-    const previousMonthStats = await this.transactionRepository
-      .createQueryBuilder('t')
-      .select('SUM(t.amountPaid - COALESCE(t.depositAmount, 0))', 'revenue')
-      .where('t.businessId = :businessId', { businessId })
-      .andWhere('t.status IN (:...statuses)', { statuses: validStatuses })
-      .andWhere('t.transactionDate >= :startDate AND t.transactionDate <= :endDate', {
-        startDate: startOfPreviousMonth,
-        endDate: endOfPreviousMonth
+      .select(`
+        SUM(CASE WHEN t.transactionDate >= :startCurrent THEN t.total ELSE 0 END) as curr_revenue,
+        SUM(CASE WHEN t.transactionDate >= :startPrev AND t.transactionDate <= :endPrev THEN t.total ELSE 0 END) as prev_revenue
+      `)
+      .setParameters({
+        startCurrent: startOfCurrentMonth,
+        startPrev: startOfPreviousMonth,
+        endPrev: endOfPreviousMonth
       })
+      .where('t.businessId = :businessId', { businessId })
+      .andWhere('t.status IN (:...statuses)', { statuses: validStatuses })
       .getRawOne();
 
-    let currentRevenue = parseFloat(currentMonthStats.revenue || 0);
-    let previousRevenue = parseFloat(previousMonthStats.revenue || 0);
+    const currentRevenue = parseFloat(revenueStats.curr_revenue || 0);
+    const previousRevenue = parseFloat(revenueStats.prev_revenue || 0);
 
-    // --- 🏆 NUEVO BLOQUE: RENDIMIENTO POR ACTIVO (ROI) ---
+    // 🧮 3. FÓRMULA FINANCIERA DEL MoM
+    let growthPercentage = 0;
+    if (previousRevenue > 0) {
+      growthPercentage = ((currentRevenue - previousRevenue) / previousRevenue) * 100;
+    } else if (currentRevenue > 0) {
+      growthPercentage = 100;
+    }
+
+    // --- 🏆 4. RENDIMIENTO POR ACTIVO (ROI) ---
     const topAssets = await this.contentRepository
       .createQueryBuilder('tc')
       .leftJoin('tc.transaction', 't')
@@ -220,15 +222,12 @@ export class AnalyticsService {
         .groupBy('sa.productId')
         .getRawMany();
 
-      const mermasMap = new Map(
-        mermasData.map(m => [m.productId, parseInt(m.lostUnits || 0)])
-      );
+      const mermasMap = new Map(mermasData.map(m => [m.productId, parseInt(m.lostUnits || 0)]));
 
       assetPerformance = topAssets.map(asset => {
         const lostUnits = mermasMap.get(asset.productId) || 0;
         const gross = parseFloat(asset.grossRevenue);
         const lossValue = lostUnits * parseFloat(asset.currentPrice);
-        const netRevenue = gross - lossValue;
 
         return {
           product: asset.productName,
@@ -239,18 +238,18 @@ export class AnalyticsService {
           financials: {
             grossRevenue: gross,
             lossValue: lossValue,
-            netRevenue: netRevenue
+            netRevenue: gross - lossValue
           }
         };
       });
     }
 
-    // --- 👥 NUEVO BLOQUE: VALOR DEL CLIENTE (LTV) ---
+    // --- 👥 5. VALOR DEL CLIENTE (LTV) ---
     const topCustomers = await this.transactionRepository
       .createQueryBuilder('t')
       .leftJoin('t.customer', 'c')
       .select('c.name', 'customerName')
-      .addSelect('SUM(t.amountPaid - COALESCE(t.depositAmount, 0))', 'totalSpent') // 🛡️ FIX
+      .addSelect('SUM(t.total)', 'totalSpent')
       .addSelect('COUNT(t.id)', 'transactionCount')
       .where('t.businessId = :businessId', { businessId })
       .andWhere('t.status IN (:...statuses)', { statuses: validStatuses })
@@ -261,23 +260,16 @@ export class AnalyticsService {
       .limit(3)
       .getRawMany();
 
-    const allTimeStats = await this.transactionRepository
+    const globalStats = await this.transactionRepository
       .createQueryBuilder('t')
-      .select('SUM(t.amountPaid - COALESCE(t.depositAmount, 0))', 'totalRevenue') // 🛡️ FIX
+      .select('SUM(t.total)', 'totalAllTime')
+      .addSelect('SUM(CASE WHEN t.customerId IS NOT NULL THEN t.total ELSE 0 END)', 'totalIdentified')
       .where('t.businessId = :businessId', { businessId })
       .andWhere('t.status IN (:...statuses)', { statuses: validStatuses })
       .getRawOne();
 
-    const identifiedStats = await this.transactionRepository
-      .createQueryBuilder('t')
-      .select('SUM(t.amountPaid - COALESCE(t.depositAmount, 0))', 'totalIdentified') // 🛡️ FIX
-      .where('t.businessId = :businessId', { businessId })
-      .andWhere('t.status IN (:...statuses)', { statuses: validStatuses })
-      .andWhere('t.customerId IS NOT NULL')
-      .getRawOne();
-
-    const totalAllTime = parseFloat(allTimeStats.totalRevenue || 0);
-    const totalIdentified = parseFloat(identifiedStats.totalIdentified || 0);
+    const totalAllTime = parseFloat(globalStats.totalAllTime || 0);
+    const totalIdentified = parseFloat(globalStats.totalIdentified || 0);
     const loyaltyPercentage = totalAllTime > 0 ? (totalIdentified / totalAllTime) * 100 : 0;
 
     const customerInsights = {
@@ -289,19 +281,13 @@ export class AnalyticsService {
       }))
     };
 
-    // --- 🏦 NUEVO BLOQUE: GASTOS OPERATIVOS, MERMAS Y REEMBOLSOS ---
-    // 🛡️ FIX 3: Extraemos todo lo que afecta la utilidad real como en FinancialPulse
+    // --- 🏦 6. GASTOS OPERATIVOS Y MERMAS (Cálculo de Utilidad) ---
     const financialMovements = await this.cashMovementRepository
       .createQueryBuilder('cm')
       .select(`
-        SUM(CASE WHEN cm.date >= :startCurrent AND cm.category = 'OPERATING_EXPENSE' THEN cm.amount ELSE 0 END) as curr_exp,
-        SUM(CASE WHEN cm.date >= :startPrev AND cm.date <= :endPrev AND cm.category = 'OPERATING_EXPENSE' THEN cm.amount ELSE 0 END) as prev_exp,
-        
-        SUM(CASE WHEN cm.date >= :startCurrent AND cm.category = 'WASTE_LOSS' THEN cm.amount ELSE 0 END) as curr_waste,
-        SUM(CASE WHEN cm.date >= :startPrev AND cm.date <= :endPrev AND cm.category = 'WASTE_LOSS' THEN cm.amount ELSE 0 END) as prev_waste,
-        
-        SUM(CASE WHEN cm.date >= :startCurrent AND cm.category = 'DEPOSIT_REFUND' THEN cm.amount ELSE 0 END) as curr_refunds,
-        SUM(CASE WHEN cm.date >= :startPrev AND cm.date <= :endPrev AND cm.category = 'DEPOSIT_REFUND' THEN cm.amount ELSE 0 END) as prev_refunds
+        SUM(CASE WHEN cm.date >= :startCurrent AND cm.category IN ('OPERATING_EXPENSE', 'WASTE_LOSS') THEN cm.amount ELSE 0 END) as curr_exp,
+        SUM(CASE WHEN cm.date >= :startPrev AND cm.date <= :endPrev AND cm.category IN ('OPERATING_EXPENSE', 'WASTE_LOSS') THEN cm.amount ELSE 0 END) as prev_exp,
+        SUM(CASE WHEN cm.category IN ('OPERATING_EXPENSE', 'WASTE_LOSS') THEN cm.amount ELSE 0 END) as all_time_exp
       `)
       .setParameters({
         startCurrent: startOfCurrentMonth,
@@ -309,26 +295,15 @@ export class AnalyticsService {
         endPrev: endOfPreviousMonth
       })
       .where('cm.businessId = :businessId', { businessId })
+      .andWhere('cm.type = :type', { type: 'OUT' })
       .getRawOne();
 
-    // 10. MATEMÁTICA FINAL DE INGRESOS (Restando reembolsos de depósitos)
-    currentRevenue -= parseFloat(financialMovements.curr_refunds || 0);
-    previousRevenue -= parseFloat(financialMovements.prev_refunds || 0);
+    const currentExpenses = parseFloat(financialMovements.curr_exp || 0);
+    const previousExpenses = parseFloat(financialMovements.prev_exp || 0);
+    const allTimeExpenses = parseFloat(financialMovements.all_time_exp || 0);
 
-    const currentExpenses = parseFloat(financialMovements.curr_exp || 0) + parseFloat(financialMovements.curr_waste || 0);
-    const previousExpenses = parseFloat(financialMovements.prev_exp || 0) + parseFloat(financialMovements.prev_waste || 0);
-
-    // 11. MATEMÁTICA FINAL: Utilidad Neta (Lo que realmente va al bolsillo)
-    const netProfitCurrent = currentRevenue - currentExpenses;
+    const netProfitCurrent = currentRevenue;
     const netProfitPrevious = previousRevenue - previousExpenses;
-
-    // 🧮 FÓRMULA FINANCIERA DEL MoM (Ahora con Ingresos Puros)
-    let growthPercentage = 0;
-    if (previousRevenue > 0) {
-      growthPercentage = ((currentRevenue - previousRevenue) / previousRevenue) * 100;
-    } else if (currentRevenue > 0) {
-      growthPercentage = 100;
-    }
 
     const financialHealth = {
       monthlyExpenses: {
@@ -344,26 +319,27 @@ export class AnalyticsService {
       }
     };
 
-    // --- 💸 NUEVO BLOQUE: SALUD DEL FLUJO DE EFECTIVO ---
+    // --- 💸 7. SALUD DEL FLUJO DE EFECTIVO (Liquidez Real) ---
     const retainedCapitalStats = await this.transactionRepository
       .createQueryBuilder('t')
       .select('SUM(t.depositAmount)', 'retainedAmount')
       .where('t.businessId = :businessId', { businessId })
-      // 🛡️ FIX: Solo nos importan los depósitos de rentas que siguen AFUERA o PENDIENTES
       .andWhere('t.rentalStatus IN (:...rStatuses)', { rStatuses: ['OUT', 'UNFULFILLED'] })
       .getRawOne();
 
     const retainedCapital = parseFloat(retainedCapitalStats.retainedAmount || 0);
 
+    // 🛡️ FIX APLICADO: El capital libre es lo que ganaste MENOS lo que ya te gastaste.
+    const trueFreeCapital = totalAllTime;
+
     const cashFlowHealth = {
       retainedCapital: retainedCapital,
-      freeCapitalAllTime: totalAllTime,
-      physicalCashInBusiness: retainedCapital + totalAllTime
+      freeCapitalAllTime: trueFreeCapital -allTimeExpenses ,
+      physicalCashInBusiness:trueFreeCapital
     };
 
     const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
-    // 🚀 RETORNO FINAL DEL PANEL
     return {
       businessId,
       kpis: {
@@ -377,10 +353,10 @@ export class AnalyticsService {
             isPositive: growthPercentage >= 0
           }
         },
-        assetPerformance: assetPerformance,
-        customerInsights: customerInsights,
-        cashFlowHealth: cashFlowHealth,
-        financialHealth: financialHealth,
+        assetPerformance,
+        customerInsights,
+        cashFlowHealth,
+        financialHealth,
       }
     };
   }
