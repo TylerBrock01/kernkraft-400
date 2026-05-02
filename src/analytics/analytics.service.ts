@@ -6,6 +6,8 @@ import { Transaction, TransactionContent, TransactionStatus } from '../transacti
 import { StockAdjustment } from '../stock-adjustments/entities/stock-adjustment.entity';
 import { CashMovement, CashMovementCategory, CashMovementType } from '../cash-movements/entities/cash-movement.entity';
 import { Timeframe } from './analytics.controller';
+import { format } from 'date-fns';
+import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 
 @Injectable()
 export class AnalyticsService {
@@ -20,40 +22,42 @@ export class AnalyticsService {
     private readonly cashMovementRepository: Repository<CashMovement>,
   ) {}
 
-  private getDateBoundaries(period: Timeframe): { startDate: Date; endDate: Date } {
-    const now = new Date();
-    let startDate = new Date(now);
-    const endDate = new Date(now); // Siempre es "ahora" o el final de hoy
+  private getDateBoundaries(period: Timeframe, timeZone: string): { startDate: Date; endDate: Date } {
+    const serverNow = new Date(); // Esto está en UTC si estás en la nube
+
+    // Convertimos el "ahora" del servidor a la hora exacta del usuario en su ciudad
+    const localNow = toZonedTime(serverNow, timeZone);
+    let localStart = new Date(localNow);
 
     switch (period) {
       case 'daily':
-        // Desde las 00:00:00 de hoy
-        startDate.setHours(0, 0, 0, 0);
+        localStart.setHours(0, 0, 0, 0);
         break;
       case 'weekly':
-        // Desde hace 7 días exactos
-        startDate.setDate(now.getDate() - 7);
-        startDate.setHours(0, 0, 0, 0);
+        localStart.setDate(localNow.getDate() - 7);
+        localStart.setHours(0, 0, 0, 0);
         break;
       case 'monthly':
-        // Desde el día 1 de este mes
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        localStart = new Date(localNow.getFullYear(), localNow.getMonth(), 1);
         break;
       case 'yearly':
-        // Desde el 1 de Enero de este año
-        startDate = new Date(now.getFullYear(), 0, 1);
+        localStart = new Date(localNow.getFullYear(), 0, 1);
         break;
     }
+
+    // Convertimos esa hora local de regreso a UTC para que la base de datos lo entienda
+    const startDate = fromZonedTime(localStart, timeZone);
+    const endDate = serverNow; // El fin siempre es "este instante exacto"
 
     return { startDate, endDate };
   }
 
-  async getFinancialPulse(businessId: string, period: Timeframe) {
-    const { startDate, endDate } = this.getDateBoundaries(period);
+// 🛡️ 2. ACTUALIZAMOS EL PULSE PARA QUE PASE LA ZONA HORARIA
+  async getFinancialPulse(businessId: string, period: Timeframe, timezone: string) {
+    // 👈 Usamos el timezone aquí
+    const { startDate, endDate } = this.getDateBoundaries(period, timezone);
 
-    // --------------------------------------------------------
-    // 1. INGRESOS BRUTOS REALES (El dinero que tocó el cajón)
-    // --------------------------------------------------------
+    // ... (El resto de tu código de getFinancialPulse se queda EXACTAMENTE IGUAL) ...
     const transactions = await this.transactionRepository.find({
       where: {
         businessId,
@@ -61,7 +65,7 @@ export class AnalyticsService {
           TransactionStatus.COMPLETED,
           TransactionStatus.PARTIAL,
           TransactionStatus.PAID,
-          TransactionStatus.PENDING // Rentas activas
+          TransactionStatus.PENDING
         ]),
         transactionDate: Between(startDate, endDate),
       },
@@ -150,25 +154,31 @@ export class AnalyticsService {
     };
   }
 
-  async getInvestorMetrics(businessId: string) {
-    const now = new Date();
+  async getInvestorMetrics(businessId: string, timezone: string) {
+    const serverNow = new Date();
 
-    // 🗓️ 1. MATEMÁTICA DE CALENDARIO
-    const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfPreviousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const endOfPreviousMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+    // 1. Convertimos el "Ahora" del servidor a la hora de la ciudad del cliente
+    const localNow = toZonedTime(serverNow, timezone);
+
+    // 2. MATEMÁTICA DE CALENDARIO EN HORA LOCAL
+    const localStartOfCurrentMonth = new Date(localNow.getFullYear(), localNow.getMonth(), 1);
+    const localStartOfPreviousMonth = new Date(localNow.getFullYear(), localNow.getMonth() - 1, 1);
+    const localEndOfPreviousMonth = new Date(localNow.getFullYear(), localNow.getMonth(), 0, 23, 59, 59, 999);
+
+    // 3. Regresamos las fechas a UTC para que la Base de Datos las entienda
+    const startOfCurrentMonth = fromZonedTime(localStartOfCurrentMonth, timezone);
+    const startOfPreviousMonth = fromZonedTime(localStartOfPreviousMonth, timezone);
+    const endOfPreviousMonth = fromZonedTime(localEndOfPreviousMonth, timezone);
 
     const validStatuses = ['COMPLETED', 'PARTIAL', 'PAID', 'PENDING'];
 
-    // 📊 2. EXTRACCIÓN DE DATOS (MES ACTUAL Y ANTERIOR)
-    // Usamos el 'total' puro de la transacción (subtotal - descuentos + penalizaciones),
-    // ignorando por completo la danza de los depósitos para proteger el mes a mes.
+    // 📊 EXTRACCIÓN DE DATOS (Ingresos)
     const revenueStats = await this.transactionRepository
       .createQueryBuilder('t')
       .select(`
-        SUM(CASE WHEN t.transactionDate >= :startCurrent THEN t.total ELSE 0 END) as curr_revenue,
-        SUM(CASE WHEN t.transactionDate >= :startPrev AND t.transactionDate <= :endPrev THEN t.total ELSE 0 END) as prev_revenue
-      `)
+      SUM(CASE WHEN t.transactionDate >= :startCurrent THEN t.total ELSE 0 END) as curr_revenue,
+      SUM(CASE WHEN t.transactionDate >= :startPrev AND t.transactionDate <= :endPrev THEN t.total ELSE 0 END) as prev_revenue
+    `)
       .setParameters({
         startCurrent: startOfCurrentMonth,
         startPrev: startOfPreviousMonth,
@@ -181,7 +191,7 @@ export class AnalyticsService {
     const currentRevenue = parseFloat(revenueStats.curr_revenue || 0);
     const previousRevenue = parseFloat(revenueStats.prev_revenue || 0);
 
-    // 🧮 3. FÓRMULA FINANCIERA DEL MoM
+    // 🧮 FÓRMULA FINANCIERA DEL MoM
     let growthPercentage = 0;
     if (previousRevenue > 0) {
       growthPercentage = ((currentRevenue - previousRevenue) / previousRevenue) * 100;
@@ -189,7 +199,7 @@ export class AnalyticsService {
       growthPercentage = 100;
     }
 
-    // --- 🏆 4. RENDIMIENTO POR ACTIVO (ROI) ---
+    // --- 🏆 RENDIMIENTO POR ACTIVO (ROI) ---
     const topAssets = await this.contentRepository
       .createQueryBuilder('tc')
       .leftJoin('tc.transaction', 't')
@@ -244,7 +254,7 @@ export class AnalyticsService {
       });
     }
 
-    // --- 👥 5. VALOR DEL CLIENTE (LTV) ---
+    // --- 👥 VALOR DEL CLIENTE (LTV) ---
     const topCustomers = await this.transactionRepository
       .createQueryBuilder('t')
       .leftJoin('t.customer', 'c')
@@ -281,14 +291,14 @@ export class AnalyticsService {
       }))
     };
 
-    // --- 🏦 6. GASTOS OPERATIVOS Y MERMAS (Cálculo de Utilidad) ---
+    // --- 🏦 GASTOS OPERATIVOS Y MERMAS ---
     const financialMovements = await this.cashMovementRepository
       .createQueryBuilder('cm')
       .select(`
-        SUM(CASE WHEN cm.date >= :startCurrent AND cm.category IN ('OPERATING_EXPENSE', 'WASTE_LOSS') THEN cm.amount ELSE 0 END) as curr_exp,
-        SUM(CASE WHEN cm.date >= :startPrev AND cm.date <= :endPrev AND cm.category IN ('OPERATING_EXPENSE', 'WASTE_LOSS') THEN cm.amount ELSE 0 END) as prev_exp,
-        SUM(CASE WHEN cm.category IN ('OPERATING_EXPENSE', 'WASTE_LOSS') THEN cm.amount ELSE 0 END) as all_time_exp
-      `)
+      SUM(CASE WHEN cm.date >= :startCurrent AND cm.category IN ('OPERATING_EXPENSE', 'WASTE_LOSS') THEN cm.amount ELSE 0 END) as curr_exp,
+      SUM(CASE WHEN cm.date >= :startPrev AND cm.date <= :endPrev AND cm.category IN ('OPERATING_EXPENSE', 'WASTE_LOSS') THEN cm.amount ELSE 0 END) as prev_exp,
+      SUM(CASE WHEN cm.category IN ('OPERATING_EXPENSE', 'WASTE_LOSS') THEN cm.amount ELSE 0 END) as all_time_exp
+    `)
       .setParameters({
         startCurrent: startOfCurrentMonth,
         startPrev: startOfPreviousMonth,
@@ -319,7 +329,7 @@ export class AnalyticsService {
       }
     };
 
-    // --- 💸 7. SALUD DEL FLUJO DE EFECTIVO (Liquidez Real) ---
+    // --- 💸 SALUD DEL FLUJO DE EFECTIVO ---
     const retainedCapitalStats = await this.transactionRepository
       .createQueryBuilder('t')
       .select('SUM(t.depositAmount)', 'retainedAmount')
@@ -328,16 +338,15 @@ export class AnalyticsService {
       .getRawOne();
 
     const retainedCapital = parseFloat(retainedCapitalStats.retainedAmount || 0);
-
-    // 🛡️ FIX APLICADO: El capital libre es lo que ganaste MENOS lo que ya te gastaste.
     const trueFreeCapital = totalAllTime;
 
     const cashFlowHealth = {
       retainedCapital: retainedCapital,
-      freeCapitalAllTime: trueFreeCapital -allTimeExpenses ,
-      physicalCashInBusiness:trueFreeCapital
+      freeCapitalAllTime: trueFreeCapital - allTimeExpenses,
+      physicalCashInBusiness: trueFreeCapital
     };
 
+    // Nombres de los meses localizados en español
     const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
     return {
@@ -345,8 +354,8 @@ export class AnalyticsService {
       kpis: {
         growthMoM: {
           label: 'Crecimiento Mes a Mes',
-          currentMonth: { label: monthNames[now.getMonth()], revenue: currentRevenue },
-          previousMonth: { label: monthNames[startOfPreviousMonth.getMonth()], revenue: previousRevenue },
+          currentMonth: { label: monthNames[localNow.getMonth()], revenue: currentRevenue }, // Mes Local
+          previousMonth: { label: monthNames[localStartOfPreviousMonth.getMonth()], revenue: previousRevenue }, // Mes Local
           growth: {
             percentage: parseFloat(growthPercentage.toFixed(2)),
             trend: growthPercentage >= 0 ? 'UP' : 'DOWN',
@@ -361,20 +370,16 @@ export class AnalyticsService {
     };
   }
 
-  async exportTransactionsToCsv(businessId: string): Promise<string> {
-    // 1. Extraemos toda la "Grasa" (Relaciones)
+  async exportTransactionsToCsv(businessId: string, timezone: string): Promise<string> {
     const transactions = await this.transactionRepository.find({
       where: {
         businessId,
-        // Solo traemos lo que realmente generó dinero o está activo
         status: TransactionStatus.COMPLETED
       },
       order: { transactionDate: 'DESC' },
-      // 🛡️ IMPORTANTE: Traemos todo el árbol de relaciones
       relations: ['customer', 'user', 'contents', 'contents.product']
     });
 
-    // 2. Encabezados Estratégicos (Lo que le importa al dueño)
     const header = [
       'Fecha',
       'Ticket',
@@ -389,46 +394,42 @@ export class AnalyticsService {
       'Descuento ($)',
       'Depósito Retenido ($)',
       'Cobro Total ($)',
-      'Utilidad Libre ($)' // 🔥 La columna reina
+      'Utilidad Libre ($)'
     ].join(',');
 
-    // 3. Transformación de Datos
     const rows = transactions.map(t => {
-      // Fechas limpias
-      const date = t.transactionDate.toISOString().split('T')[0];
-      const returnDate = t.returnDate ? t.returnDate.toISOString().split('T')[0] : 'N/A';
+      // 🛡️ FIX: Formateamos la fecha en la zona horaria del cliente (Ej: '2026-05-01')
+      const localDate = toZonedTime(t.transactionDate, timezone);
+      const date = format(localDate, 'yyyy-MM-dd');
 
-      // UUID Corto (Para que no se vea feo en Excel, tomamos la primera parte)
+      let returnDate = 'N/A';
+      if (t.returnDate) {
+        const localReturn = toZonedTime(t.returnDate, timezone);
+        returnDate = format(localReturn, 'yyyy-MM-dd');
+      }
+
       const shortTicket = t.uuid.split('-')[0].toUpperCase();
-
-      // Nombres
       const cashier = t.user?.name || 'Sistema';
       const customer = t.customer?.name || 'Público General';
 
-      // 📦 EMPAQUETADO DE PRODUCTOS: Convertimos el array en un string legible
-      // Ejemplo de salida: "2.5x Plátano | 1x Manzana" o "10x Silla | 1x Mesa"
       const itemsString = t.contents
         .map(c => `${c.quantity}x ${c.product?.name || 'Art. Desconocido'}`)
         .join(' | ');
 
-      // Matemáticas Financieras
       const total = Number(t.total);
       const deposit = Number(t.depositAmount || 0);
       const discount = Number(t.couponDiscount || 0);
-
-      // La fórmula de oro: Cobramos 100, devolvemos 20 de depósito = 80 libres
       const realRevenue = total - deposit;
 
-      // 4. Retorno de la Fila (Escapando comas en los textos)
       return [
         date,
         shortTicket,
-        `"${cashier}"`,   // Comillas para evitar que un nombre con coma rompa el Excel
+        `"${cashier}"`,
         `"${customer}"`,
-        t.type,           // SALE o RENTAL
+        t.type,
         t.rentalStatus || 'N/A',
         returnDate,
-        `"${itemsString}"`, // Comillas vitales aquí por la cantidad de texto
+        `"${itemsString}"`,
         t.paymentMethod,
         t.coupon || 'Ninguno',
         discount.toFixed(2),
@@ -438,58 +439,49 @@ export class AnalyticsService {
       ].join(',');
     });
 
-    // 5. Ensamblaje Final
     return [header, ...rows].join('\n');
   }
 
-  async getOHLC(businessId: string, period: Timeframe) {
-    const { startDate, endDate } = this.getDateBoundaries(period);
+  async getOHLC(businessId: string, period: Timeframe, timezone: string) {
+    // Asegúrate de que getDateBoundaries ahora reciba y use el timezone (como acordamos antes)
+    const { startDate, endDate } = this.getDateBoundaries(period, timezone);
 
-    // --------------------------------------------------------
-    // 2. EXTRACCIÓN CRUDA (Sincronizada con la Dona)
-    // --------------------------------------------------------
     const transactions = await this.transactionRepository
       .createQueryBuilder('t')
       .select('t.transactionDate', 'date')
-      // 🛡️ EL ESCUDO CONTABLE: Restamos el depósito del efectivo recibido
-      // Así graficamos el valor real del ticket, no el pasivo temporal.
       .addSelect('(t.amountPaid - COALESCE(t.depositAmount, 0))', 'netTicket')
       .where('t.businessId = :businessId', { businessId })
-      // 🛡️ INCLUIMOS RENTAS Y ABONOS (Sincronía total con el Pulso Financiero)
       .andWhere('t.status IN (:...statuses)', {
         statuses: [
           TransactionStatus.COMPLETED,
           TransactionStatus.PARTIAL,
-          TransactionStatus.PAID,     // Pick-Ups pagados
-          TransactionStatus.PENDING   // Rentas activas
+          TransactionStatus.PAID,
+          TransactionStatus.PENDING
         ]
       })
       .andWhere('t.transactionDate >= :startDate AND t.transactionDate <= :endDate', {
         startDate,
         endDate
       })
-      .orderBy('t.transactionDate', 'ASC') // 👈 La cronología es intocable
+      .orderBy('t.transactionDate', 'ASC')
       .getRawMany();
 
-    // --------------------------------------------------------
-    // 3. La Fábrica de Velas Inteligente
-    // --------------------------------------------------------
     const ohlcMap = new Map<string, any>();
 
     for (const t of transactions) {
-      const dateObj = new Date(t.date);
+      // 🛡️ FIX: Convertimos la hora UTC de Postgres a la hora local del usuario
+      const localDate = toZonedTime(new Date(t.date), timezone);
       let timeKey = '';
 
+      // Agrupamos usando el reloj local del cliente, no el de la nube
       if (period === 'daily') {
-        dateObj.setMinutes(0, 0, 0);
-        timeKey = dateObj.toISOString();
+        timeKey = format(localDate, "yyyy-MM-dd'T'HH:00:00.000XXX"); // Ejemplo: 2026-05-01T21:00:00.000-07:00
       } else if (period === 'yearly') {
-        timeKey = dateObj.toISOString().split('T')[0].slice(0, 7);
+        timeKey = format(localDate, 'yyyy-MM'); // Agrupa por mes local
       } else {
-        timeKey = dateObj.toISOString().split('T')[0];
+        timeKey = format(localDate, 'yyyy-MM-dd'); // Agrupa por día local
       }
 
-      // 🧠 Parseamos y aseguramos que no haya tickets negativos por errores raros
       const ticketValue = Math.max(0, parseFloat(t.netTicket));
 
       if (!ohlcMap.has(timeKey)) {
@@ -503,10 +495,8 @@ export class AnalyticsService {
         });
       } else {
         const candle = ohlcMap.get(timeKey);
-
         if (ticketValue > candle.high) candle.high = ticketValue;
         if (ticketValue < candle.low) candle.low = ticketValue;
-
         candle.close = ticketValue;
         candle.volume += 1;
       }

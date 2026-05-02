@@ -1,8 +1,7 @@
-import { Controller, Get, Query, Res, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, Res, UseGuards, Headers } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import { User } from '../users/entities/user.entity';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { Role } from '../auth/roles/roles';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -25,18 +24,22 @@ export class AnalyticsController {
   async getFinancialPulse(
     @GetUser() user: ActiveUser,
     @Query('period') period?: Timeframe,
+    @Headers('x-timezone') clientTimezone?: string, // 👈 ATRAPAMOS LA ZONA
   ) {
-    const timeframe = period || 'daily'; // Default a Hoy
+    const timeframe = period || 'daily';
+    const timezone = clientTimezone || 'America/Tijuana'; // 🛡️ Fallback
 
     const pulseData = await this.analyticsService.getFinancialPulse(
       user.businessId,
-      timeframe
+      timeframe,
+      timezone // 👈 SE LA PASAMOS AL SERVICIO
     );
 
     return {
       timestamp: new Date().toISOString(),
       businessId: user.businessId,
       period: timeframe,
+      timezone: timezone, // Para depuración en el frontend
       data: pulseData
     };
   }
@@ -46,38 +49,59 @@ export class AnalyticsController {
   async getOHLC(
     @GetUser() user: ActiveUser,
     @Query('period') period?: Timeframe,
+    @Headers('x-timezone') clientTimezone?: string, // 👈 ATRAPAMOS LA ZONA
   ) {
     const timeframe = period || 'daily';
+    const timezone = clientTimezone || 'America/Tijuana'; // 🛡️ Fallback
 
     const ohlcData = await this.analyticsService.getOHLC(
       user.businessId,
-      timeframe
+      timeframe,
+      timezone // 👈 SE LA PASAMOS AL SERVICIO
     );
 
     return {
       businessId: user.businessId,
       period: timeframe,
+      timezone: timezone,
       data: ohlcData
     };
   }
 
   // 💼 3. MÉTRICAS MACRO (Solo para el Dueño)
   @Get('investor')
-  async getInvestorMetrics(@GetUser() user: ActiveUser) {
-    return this.analyticsService.getInvestorMetrics(user.businessId);
+  async getInvestorMetrics(
+    @GetUser() user: ActiveUser,
+    @Headers('x-timezone') clientTimezone?: string, // 👈 ATRAPAMOS LA ZONA
+  ) {
+    const timezone = clientTimezone || 'America/Tijuana'; // 🛡️ Fallback
+
+    return this.analyticsService.getInvestorMetrics(
+      user.businessId,
+      timezone // 👈 SE LA PASAMOS AL SERVICIO
+    );
   }
 
+  // 🖨️ 4. EXPORTACIÓN A CSV
   @Get('export/csv')
-  async downloadCsv(@GetUser() user: ActiveUser, @Res() res: Response) {
-    const csvData = await this.analyticsService.exportTransactionsToCsv(user.businessId);
+  async downloadCsv(
+    @GetUser() user: ActiveUser,
+    @Res() res: Response,
+    @Headers('x-timezone') clientTimezone?: string, // 👈 ATRAPAMOS LA ZONA
+  ) {
+    const timezone = clientTimezone || 'America/Tijuana'; // 🛡️ Fallback
+
+    const csvData = await this.analyticsService.exportTransactionsToCsv(
+      user.businessId,
+      timezone // 👈 SE LA PASAMOS AL SERVICIO
+    );
 
     const fileName = `reporte_caza_${new Date().toISOString().split('T')[0]}.csv`;
 
     // Configuramos el "attachment" para forzar la descarga
-    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8'); // charset=utf-8 por los acentos
     res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
 
     return res.status(200).send(csvData);
   }
-
 }
