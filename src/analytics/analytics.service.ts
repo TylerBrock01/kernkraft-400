@@ -3,11 +3,11 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, In, Repository } from 'typeorm';
 import { Transaction, TransactionContent, TransactionStatus } from '../transactions/entities/transaction.entity';
-import { StockAdjustment } from '../stock-adjustments/entities/stock-adjustment.entity';
+import { AdjustmentReason, StockAdjustment } from '../stock-adjustments/entities/stock-adjustment.entity';
 import { CashMovement, CashMovementCategory, CashMovementType } from '../cash-movements/entities/cash-movement.entity';
 import { Timeframe } from './analytics.controller';
 import { format } from 'date-fns';
-import { toZonedTime, fromZonedTime } from 'date-fns-tz';
+import { fromZonedTime, toZonedTime } from 'date-fns-tz';
 
 @Injectable()
 export class AnalyticsService {
@@ -124,7 +124,13 @@ export class AnalyticsService {
         businessId,
         // IMPORTANTE: Asegúrate de que el campo de fecha coincida con tu entidad (puede ser 'date' o 'createdAt')
         createdAt: Between(startDate, endDate),
-        // type: 'LOSS' // 👈 Descomenta si tienes un Enum para diferenciar pérdidas de "entradas por inventario"
+        reason: In([
+          AdjustmentReason.DAMAGE,
+          AdjustmentReason.THEFT,
+          AdjustmentReason.EXPIRATION,
+          AdjustmentReason.LOSS,
+          AdjustmentReason.OTHER
+        ]) // 👈 Descomenta si tienes un Enum para diferenciar pérdidas de "entradas por inventario"
       },
       relations: ['product'] // 👈 CRÍTICO: Necesitamos el producto para saber cuánto dinero se perdió
     });
