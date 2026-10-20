@@ -43,6 +43,10 @@ export class Product {
   @Column({ nullable: true })
   image: string;
 
+  // Novedad: Arreglo de URLs para la galería completa de imágenes
+  @Column('text', { array: true, default: '{}' })
+  images: string[];
+
   @Column({ default: true })
   isActive: boolean;
 

@@ -1,4 +1,4 @@
-import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, IsObject, Min, IsInt, IsBoolean } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, IsObject, Min, IsInt, IsBoolean, IsArray } from 'class-validator';
 import { BusinessType } from '../../business/entities/business.entity';
 import { Transform, Type } from 'class-transformer';
 
@@ -34,6 +34,11 @@ export class CreateProductDto {
   @IsString()
   image?: string;
 
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+    //@IsUrl({}, { each: true }) // Opcional: si quieres forzar que cada ítem sea una URL válida
+  images?: string[]; // Galería de imágenes
   @IsNotEmpty({ message: 'El tipo de industria es requerido' })
   @IsEnum(BusinessType)
   type: BusinessType;

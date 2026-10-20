@@ -28,27 +28,47 @@ export class ProductsService {
   }
 
   // 2. EL MetODO CREATE ACTUALIZADO
-  async create(createProductDto: CreateProductDto, user: ActiveUser, file?: Express.Multer.File) {
-    // 1. EL MURO DE PAGO (Este código se queda exactamente igual)
+  async create(
+    createProductDto: CreateProductDto,
+    user: ActiveUser,
+    files?: Express.Multer.File[] // <--- Aceptamos un arreglo de archivos de Multer
+  ) {
+    // 1. EL MURO DE PAGO (Límite por plan)
     const maxProducts = PLAN_LIMITS[user.plan].maxProducts;
     if (maxProducts !== -1) {
       const currentProductsCount = await this.productRepository.count({
         where: { businessId: user.businessId }
       });
       if (currentProductsCount >= maxProducts) {
-        throw new ForbiddenException(`Catálogo lleno...`);
+        throw new ForbiddenException(`Catálogo lleno. Tu plan actual (${user.plan}) solo te permite registrar ${maxProducts} productos.`);
       }
     }
 
-    // ✨ 2. PROCESAMIENTO DE IMAGEN
-    if (file) {
+    // ✨ 2. PROCESAMIENTO MULTIPLE DE IMÁGENES
+    const uploadedUrls: string[] = [];
+
+    if (files && files.length > 0) {
       try {
-        const uploadedImage = await this.uploadImageService.uploadFile(file);
-        // Si todo sale bien, metemos la URL de Cloudinary al DTO
-        createProductDto.image = uploadedImage.secure_url;
+        // Subimos todas las imágenes en paralelo a Cloudinary
+        const uploadPromises = files.map(file => this.uploadImageService.uploadFile(file));
+        const uploadResults = await Promise.all(uploadPromises);
+
+        // Extraemos las URLs de Cloudinary
+        uploadedUrls.push(...uploadResults.map(res => res.secure_url));
       } catch (error) {
-        throw new BadRequestException('Hubo un error al subir la imagen a la nube.');
+        throw new BadRequestException('Hubo un error al subir las imágenes a la nube.');
       }
+    }
+
+    // Si enviaron imágenes por archivos, actualizamos DTO
+    if (uploadedUrls.length > 0) {
+      // Si el usuario ya tenía imágenes en string dentro de createProductDto.images, las conservamos y sumamos las nuevas
+      createProductDto.images = [...(createProductDto.images || []), ...uploadedUrls];
+    }
+
+    // Si no definieron una imagen principal (image), tomamos la primera de la galería/images
+    if (!createProductDto.image && createProductDto.images?.length > 0) {
+      createProductDto.image = createProductDto.images[0];
     }
 
     // 3. Generamos el slug automáticamente
@@ -63,16 +83,15 @@ export class ProductsService {
       throw new BadRequestException('Ya tienes un producto con un nombre muy similar.');
     }
 
-    // 5. Guardamos (Aquí createProductDto ya lleva la URL de la imagen adentro)
+    // 5. Guardamos en la base de datos
     const product = this.productRepository.create({
       ...createProductDto,
-      slug: slug,
+      slug,
       businessId: user.businessId,
     });
 
     return await this.productRepository.save(product);
   }
-
   // 2. LEER TODO: Filtrado por industria y paginación
   async findAll(user: ActiveUser, take: number = 10, skip: number = 0, search?: string) {
     // 1. La regla de oro: NUNCA romper el aislamiento del Tenant (businessId)

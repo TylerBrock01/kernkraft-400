@@ -1,30 +1,29 @@
 // src/products/products.controller.ts
 import {
+  BadRequestException,
+  Body,
   Controller,
   Get,
-  Post,
-  Body,
-  Patch,
   Param,
-  Delete,
+  Patch,
+  Post,
   Query,
-  UseInterceptors,
   UploadedFile,
-  BadRequestException,
+  UploadedFiles,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { GetProductQueryDto } from './dto/get-product.dto';
 import { IdValidationPipe } from '../common/pipes/id-validation/id-validation.pipe';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { UploadImageService } from '../upload-image/upload-image.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/roles/roles';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import { GetBusinessId } from '../auth/decorators/get-business-id.decorator';
 import { BusinessActiveGuard } from '../auth/guards/business-active.guard';
 import { RequirePlan } from '../auth/decorators/require-plan.decorator';
 import { SubscriptionPlan } from '../business/entities/business.entity';
@@ -45,14 +44,14 @@ export class ProductsController {
 
   @Roles(Role.ADMIN, Role.ALMACEN)
   @Post()
-  @UseInterceptors(FileInterceptor('file')) // 📸 Atrapa el archivo con la llave 'file'
+  @UseInterceptors(FilesInterceptor('files', 5)) // 📸 Atrapa hasta 5 archivos bajo la llave 'files'
   create(
     @Body() createProductDto: CreateProductDto,
     @GetUser() user: ActiveUser,
-    @UploadedFile() file?: Express.Multer.File // 📸 Lo recibimos como opcional
+    @UploadedFiles() files?: Express.Multer.File[] // 📸 Los recibimos como arreglo opcional
   ) {
-    // Le pasamos el archivo al servicio
-    return this.productsService.create(createProductDto, user, file);
+    // Le pasamos el arreglo de archivos al servicio
+    return this.productsService.create(createProductDto, user, files);
   }
 
   @Get()
