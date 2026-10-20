@@ -100,11 +100,17 @@ export class ProductsController {
 
   @Roles(Role.ADMIN, Role.ALMACEN)
   @Post('upload-images')
-  @UseInterceptors(FileInterceptor('file'))
-  uploadImage(@UploadedFile() file: Express.Multer.File) {
-    if (!file) {
-      throw new BadRequestException('Image is required');
+  @UseInterceptors(FilesInterceptor('files', 5)) // Recibe hasta 5 archivos bajo la llave 'files'
+  async uploadImages(@UploadedFiles() files: Express.Multer.File[]) {
+    if (!files || files.length === 0) {
+      throw new BadRequestException('Images are required');
     }
-    return this.uploadImageService.uploadFile(file);
+
+    // Subimos todas en paralelo a Cloudinary
+    const uploadPromises = files.map(file => this.uploadImageService.uploadFile(file));
+    const results = await Promise.all(uploadPromises);
+
+    // Regresamos un arreglo con las URLs seguras
+    return results.map(res => res.secure_url);
   }
 }
