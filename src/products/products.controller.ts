@@ -99,7 +99,7 @@ export class ProductsController {
   // }
 
   @Roles(Role.ADMIN, Role.ALMACEN)
-  @Post('upload-image')
+  @Post('upload-images')
   @UseInterceptors(FileInterceptor('file'))
   uploadImage(@UploadedFile() file: Express.Multer.File) {
     if (!file) {
