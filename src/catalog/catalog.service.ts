@@ -86,4 +86,56 @@ export class CatalogService {
       },
     };
   }
+
+  // En catalog.service.ts
+  async getProductDetail(businessSlug: string, productId: number) {
+    // 1. Validar que el negocio exista
+    const business = await this.businessRepository.findOne({
+      where: { slug: businessSlug },
+    });
+
+    if (!business) {
+      throw new NotFoundException(`El establecimiento '${businessSlug}' no existe.`);
+    }
+
+    // 2. Buscar el producto asegurando que pertenezca al negocio y esté activo
+    const product = await this.productRepository.findOne({
+      where: {
+        id: productId,
+        businessId: business.id,
+        isActive: true,
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException('La propiedad o producto solicitado no se encuentra disponible.');
+    }
+
+    // 3. Retornar la estructura limpia lista para el frontend
+    return {
+      store: {
+        id: business.id,
+        name: business.name,
+        type: business.type,
+        contact: business || {
+          logoUrl: '',
+          taxRate: 16,
+          currency: 'MXN',
+          primaryColor: '#3b82f6',
+        },
+      },
+      product: {
+        id: product.id,
+        name: product.name,
+        description: product.description,
+        slug: product.slug,
+        price: product.price,
+        stock: product.stock,
+        image: product.image,
+        images: product.images,
+        metadata: product.metadata,
+        type: product.type,
+      },
+    };
+  }
 }

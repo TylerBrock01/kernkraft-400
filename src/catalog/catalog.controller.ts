@@ -20,4 +20,11 @@ export class CatalogController {
       search
     );
   }
+  @Get(':slug/catalog/:id')
+  async getProductDetail(
+    @Param('slug') slug: string,
+    @Param('id') id: string,
+  ) {
+    return this.catalogService.getProductDetail(slug, Number(id));
+  }
 }
