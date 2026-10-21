@@ -11,7 +11,7 @@ export const typeOrmConfig = (
   username: configService.get<string>('DATABASE_USER'),
   password: configService.get<string>('DATABASE_PASS'),
   database: configService.get<string>('DATABASE_NAME'),
-  ssl: false,//true para produ
+  ssl: true,//true para produ
   // logging: false,
   entities: [join(__dirname, '../**/*.entity.{js,ts}')],
   synchronize: configService.get<string>('NODE_ENV') !== 'production',
