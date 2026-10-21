@@ -6,6 +6,10 @@ export class GetProductQueryDto {
   category_id?: number;
 
   @IsOptional()
+  @IsNumberString({}, { message: 'deck_id debe ser un numero' })
+  deck_id?: number;
+
+  @IsOptional()
   @IsNumberString({}, { message: 'la cantidad debe ser un numero' })
   take?: number;
 
