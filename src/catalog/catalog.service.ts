@@ -17,58 +17,73 @@ export class CatalogService {
   async getStorefront(
     slug: string,
     page: number = 1,
-    limit: number = 12, // 12 es el número dorado para grids (múltiplo de 2, 3 y 4 columnas)
-    search?: string
+    limit: number = 12,
+    search?: string,
   ) {
-    // 1. BUSCAMOS EL NEGOCIO POR SU SLUG (Tenant Identification)
+    // 1. Buscamos el negocio por su slug
     const business = await this.businessRepository.findOne({
-      where: { slug: slug, isActive: true },
+      where: { slug },
     });
 
     if (!business) {
-      throw new NotFoundException(`La tienda '${slug}' no existe o se encuentra inactiva.`);
+      throw new NotFoundException(`El establecimiento '${slug}' no existe.`);
     }
 
-    const skip = (page - 1) * limit;
+    // 2. Construimos la consulta para los productos del negocio
+    const query = this.productRepository
+      .createQueryBuilder('product')
+      .where('product.businessId = :businessId', { businessId: business.id })
+      .andWhere('product.isActive = :isActive', { isActive: true });
 
-    // 2. CONSTRUCCIÓN DINÁMICA DE LA CONSULTA
-    const whereCondition: any = {
-      businessId: business.id,
-      // 🛡️ CTO Trick: Si el stock llega a 0, desaparece mágicamente.
-      stock: MoreThan(0),
-    };
-
-    // 🔍 Inyección del Buscador
-    if (search) {
-      // Usamos ILike para ignorar mayúsculas/minúsculas (ej: "torta" encuentra "Torta")
-      whereCondition.name = ILike(`%${search}%`);
+    // 3. Filtro opcional por barra de búsqueda
+    if (search && search.trim() !== '') {
+      query.andWhere('LOWER(product.name) LIKE LOWER(:search)', {
+        search: `%${search.trim()}%`,
+      });
     }
 
-    // 3. EXTRACCIÓN DEL INVENTARIO PÚBLICO (Paginado)
-    const [products, total] = await this.productRepository.findAndCount({
-      where: whereCondition,
-      select: ['id', 'name', 'price', 'stock', 'slug', 'description'], // Solo datos seguros
-      order: { name: 'ASC' },
-      take: limit,
-      skip: skip,
-    });
+    // 4. Aplicamos paginación profesional (El 12 es perfecto para grids de 2, 3 y 4 columnas)
+    const [products, total] = await query
+      .orderBy('product.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
 
-    // 4. EMPAQUETAMOS LA VITRINA PARA EL FRONTEND
+    const lastPage = Math.ceil(total / limit) || 1;
+
+    // 5. Retornamos la estructura exacta que tu frontend espera con metadatos completos
     return {
       store: {
+        id: business.id,
         name: business.name,
         type: business.type,
-        contact: business.config || {},
+        contact: business || {
+          logoUrl: '',
+          taxRate: 16,
+          currency: 'MXN',
+          primaryColor: '#3b82f6',
+        },
       },
       catalog: {
-        data: products,
+        data: products.map(product => ({
+          id: product.id,
+          name: product.name,
+          description: product.description,
+          slug: product.slug,
+          price: product.price,
+          stock: product.stock,
+          image: product.image,       // 📸 Thumbnail principal
+          images: product.images,     // 🖼️ Array completo de la galería
+          metadata: product.metadata, // 🧠 Atributos dinámicos (recámaras, tipo, etc.)
+          type: product.type,
+        })),
         meta: {
           total,
           page: Number(page),
-          lastPage: Math.ceil(total / limit),
-          hasSearch: !!search // Bandera útil para que el Frontend sepa si está viendo resultados de búsqueda
-        }
-      }
+          lastPage,
+          hasSearch: !!search,
+        },
+      },
     };
   }
 }
