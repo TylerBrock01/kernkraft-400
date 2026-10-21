@@ -5,7 +5,7 @@ import {join} from 'path'
 export const typeOrmConfig = (
   configService: ConfigService,
 ): TypeOrmModuleOptions => ({
-  type: 'mongodb',// postgres para railway | mongodb para render
+  type: 'postgres',
   host: configService.get<string>('DATABASE_HOST'),//_host local para prod
   port: configService.get<number>('DATABASE_PORT'),
   username: configService.get<string>('DATABASE_USER'),
