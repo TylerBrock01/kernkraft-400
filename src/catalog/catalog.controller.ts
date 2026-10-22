@@ -20,7 +20,7 @@ export class CatalogController {
       search
     );
   }
-  @Get(':slug/catalog/:id')
+  @Get(':slug/:id')
   async getProductDetail(
     @Param('slug') slug: string,
     @Param('id') id: string,
