@@ -21,6 +21,9 @@ import { CustomersModule } from './customers/customers.module';
 import { CashMovementsModule } from './cash-movements/cash-movements.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { SuperAdminModule } from './super_admin/super_admin.module';
+import { UnitsModule } from './units/units.module';
+import { MaterialsModule } from './materials/materials.module';
+import { InventoryModule } from './inventory/inventory.module';
 
 @Module({
   imports: [
@@ -48,6 +51,9 @@ import { SuperAdminModule } from './super_admin/super_admin.module';
     CustomersModule,
     CashMovementsModule,
     SuperAdminModule,
+    UnitsModule,
+    MaterialsModule,
+    InventoryModule,
   ],
   controllers: [AppController],
   providers: [AppService],
